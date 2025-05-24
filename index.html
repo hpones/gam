@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Experimental Camera</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <h1>Experimental Camera</h1>
+
+  <div class="camera-container">
+    <video id="video" autoplay playsinline></video>
+    <canvas id="canvas"></canvas>
+  </div>
+
+  <div class="controls">
+    <label for="filterSelect">Elige un filtro:</label>
+    <select id="filterSelect">
+      <option value="none">Sin filtro</option>
+      <option value="grayscale">Escala de grises</option>
+      <option value="invert">Invertir colores</option>
+      <option value="glitch">Glitch (básico)</option>
+      <option value="sepia">Sepia</option>
+    </select>
+  </div>
+
+  <div class="photo-video-controls">
+    <button id="takePhoto">📸 Tomar Foto</button>
+    <button id="startRecord">⏺ Grabar Video</button>
+    <button id="stopRecord" disabled>⏹ Detener Grabación</button>
+  </div>
+
+  <h2>Galería</h2>
+  <div id="gallery" class="gallery"></div>
+
+  <script src="app.js"></script>
+</body>
+</html>

@@ -1,0 +1,68 @@
+body {
+  font-family: Arial, sans-serif;
+  text-align: center;
+  background: #222;
+  color: white;
+  margin: 0;
+  padding: 1rem;
+}
+
+h1, h2 {
+  margin-bottom: 1rem;
+}
+
+.camera-container {
+  position: relative;
+  display: inline-block;
+  max-width: 100%;
+}
+
+video, canvas {
+  width: 320px;
+  max-width: 100%;
+  border-radius: 8px;
+  background: black;
+}
+
+canvas {
+  position: absolute;
+  top: 0;
+  left: 0;
+}
+
+.controls, .photo-video-controls {
+  margin-top: 1rem;
+}
+
+select, button {
+  padding: 0.5rem;
+  font-size: 1rem;
+  margin: 0.25rem;
+}
+
+.gallery {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 0.5rem;
+  margin-top: 1rem;
+}
+
+.gallery-item {
+  background: #333;
+  border: 1px solid #444;
+  padding: 0.5rem;
+  border-radius: 6px;
+}
+
+.gallery-item video,
+.gallery-item img {
+  max-width: 150px;
+  border-radius: 4px;
+  display: block;
+  margin-bottom: 0.5rem;
+}
+
+.gallery-item button {
+  font-size: 0.8rem;
+}
