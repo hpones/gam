@@ -7,8 +7,77 @@ body {
   padding: 1rem;
 }
 
-h1, h2 {
+h1 {
   margin-bottom: 1rem;
+}
+
+.filter-section, .capture-section {
+  margin: 1rem auto;
+  max-width: 320px;
+}
+
+.filter-section label {
+  font-weight: bold;
+  display: block;
+  margin-bottom: 0.5rem;
+  font-size: 1.1rem;
+}
+
+.filter-section select {
+  width: 100%;
+  padding: 0.5rem;
+  font-size: 1rem;
+  border-radius: 6px;
+  border: none;
+}
+
+.capture-section {
+  display: flex;
+  justify-content: center;
+  gap: 2rem;
+  margin-bottom: 1rem;
+}
+
+.btn-circle {
+  border: none;
+  border-radius: 50%;
+  cursor: pointer;
+  box-shadow: 0 0 8px rgba(0,0,0,0.5);
+  transition: background-color 0.3s ease;
+}
+
+.white-circle {
+  width: 60px;
+  height: 60px;
+  background: white;
+}
+
+.red-circle {
+  width: 60px;
+  height: 60px;
+  background: red;
+}
+
+.small-btn {
+  width: 35px;
+  height: 35px;
+  font-size: 1.2rem;
+  line-height: 1;
+  color: white;
+  background: #444;
+  box-shadow: none;
+}
+
+.open-gallery-btn {
+  background: #0066cc;
+  color: white;
+  border: none;
+  border-radius: 6px;
+  padding: 0.5rem 1rem;
+  font-size: 1rem;
+  cursor: pointer;
+  margin-bottom: 1rem;
+  box-shadow: 0 0 8px rgba(0,102,204,0.7);
 }
 
 .camera-container {
@@ -28,41 +97,4 @@ canvas {
   position: absolute;
   top: 0;
   left: 0;
-}
-
-.controls, .photo-video-controls {
-  margin-top: 1rem;
-}
-
-select, button {
-  padding: 0.5rem;
-  font-size: 1rem;
-  margin: 0.25rem;
-}
-
-.gallery {
-  display: flex;
-  flex-wrap: wrap;
-  justify-content: center;
-  gap: 0.5rem;
-  margin-top: 1rem;
-}
-
-.gallery-item {
-  background: #333;
-  border: 1px solid #444;
-  padding: 0.5rem;
-  border-radius: 6px;
-}
-
-.gallery-item video,
-.gallery-item img {
-  max-width: 150px;
-  border-radius: 4px;
-  display: block;
-  margin-bottom: 0.5rem;
-}
-
-.gallery-item button {
-  font-size: 0.8rem;
 }
