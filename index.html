@@ -1,188 +1,51 @@
 <!DOCTYPE html>
-<html lang="es">
+<html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
   <title>Experimental Camera</title>
-  <style>
-    body, html {
-      margin: 0;
-      padding: 0;
-      background: black;
-      color: white;
-      font-family: sans-serif;
-      overflow: hidden;
-    }
-    #videoContainer {
-      position: relative;
-      width: 100vw;
-      height: 100vh;
-      overflow: hidden;
-    }
-    #videoElement, #canvasElement {
-      position: absolute;
-      top: 0;
-      left: 0;
-      width: 100%;
-      height: 100%;
-      object-fit: cover;
-      z-index: 1;
-    }
-    #controls {
-      position: absolute;
-      top: 10px;
-      width: 100%;
-      display: flex;
-      justify-content: center;
-      gap: 20px;
-      z-index: 2;
-    }
-    .control-button {
-      width: 60px;
-      height: 60px;
-      border-radius: 50%;
-      border: none;
-      font-size: 24px;
-      background-color: rgba(255,255,255,0.8);
-      color: black;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-    }
-    #topRightControls {
-      position: absolute;
-      top: 10px;
-      right: 10px;
-      z-index: 2;
-      display: flex;
-      flex-direction: column;
-      gap: 10px;
-    }
-    #gallery {
-      position: absolute;
-      bottom: 10px;
-      left: 0;
-      width: 100%;
-      padding: 10px;
-      display: flex;
-      flex-wrap: nowrap;
-      overflow-x: auto;
-      z-index: 2;
-    }
-    .media-thumb {
-      height: 60px;
-      margin-right: 10px;
-    }
-  </style>
+  <link rel="stylesheet" href="style.css" />
 </head>
 <body>
-  <div id="videoContainer">
-    <video id="videoElement" autoplay muted playsinline></video>
-    <canvas id="canvasElement"></canvas>
 
+  <div id="camera-container">
+    <video id="video" autoplay muted playsinline></video>
+    <canvas id="canvas" style="display: none;"></canvas>
+
+    <!-- Botones -->
     <div id="controls">
-      <button id="photoButton" class="control-button">📸</button>
-      <button id="recordButton" class="control-button">🔴</button>
-      <button id="filterButton" class="control-button" style="background-color: yellow;">🎨</button>
+      <button id="photo-btn" class="circle white"></button>
+      <button id="video-btn" class="circle red"></button>
+      <button id="filters-btn" class="circle yellow"></button>
     </div>
 
-    <div id="topRightControls">
-      <button id="fullscreenButton" class="control-button" style="width:40px; height:40px; font-size:18px; background: rgba(255,255,255,0.3);">⛶</button>
+    <!-- Controles de video activos -->
+    <div id="video-controls" style="display: none;">
+      <button id="pause-btn" class="circle small gray">⏸</button>
+      <button id="stop-btn" class="circle small gray">■</button>
     </div>
 
-    <div id="gallery"></div>
+    <!-- Botón de pantalla completa -->
+    <button id="fullscreen-btn" class="fullscreen-icon">⛶</button>
+
+    <!-- Selector de filtros -->
+    <div id="filter-selector" class="hidden">
+      <select id="filter-select">
+        <option value="none">Sin filtro</option>
+        <option value="glitch">Glitch</option>
+        <option value="grayscale">Blanco y negro</option>
+        <option value="sepia">Sepia</option>
+        <option value="invert">Invertir</option>
+      </select>
+    </div>
   </div>
 
-  <script>
-    const video = document.getElementById('videoElement');
-    const canvas = document.getElementById('canvasElement');
-    const photoButton = document.getElementById('photoButton');
-    const recordButton = document.getElementById('recordButton');
-    const filterButton = document.getElementById('filterButton');
-    const fullscreenButton = document.getElementById('fullscreenButton');
-    const gallery = document.getElementById('gallery');
+  <!-- Galería -->
+  <div id="gallery">
+    <h2>Galería</h2>
+    <div id="media"></div>
+  </div>
 
-    let currentStream;
-    let facingMode = 'user';
-    let mediaRecorder;
-    let recordedChunks = [];
-    let recording = false;
-
-    async function startCamera() {
-      if (currentStream) {
-        currentStream.getTracks().forEach(track => track.stop());
-      }
-      currentStream = await navigator.mediaDevices.getUserMedia({
-        video: { facingMode },
-        audio: true
-      });
-      video.srcObject = currentStream;
-    }
-
-    video.addEventListener('dblclick', () => {
-      facingMode = (facingMode === 'user') ? 'environment' : 'user';
-      startCamera();
-    });
-
-    fullscreenButton.onclick = () => {
-      if (!document.fullscreenElement) {
-        document.documentElement.requestFullscreen();
-      } else {
-        document.exitFullscreen();
-      }
-    };
-
-    photoButton.onclick = () => {
-      const canvasTemp = document.createElement('canvas');
-      canvasTemp.width = video.videoWidth;
-      canvasTemp.height = video.videoHeight;
-      const ctx = canvasTemp.getContext('2d');
-      ctx.drawImage(video, 0, 0);
-      const dataUrl = canvasTemp.toDataURL();
-      const img = document.createElement('img');
-      img.src = dataUrl;
-      img.className = 'media-thumb';
-      gallery.appendChild(img);
-    };
-
-    recordButton.onclick = () => {
-      if (!recording) {
-        recordedChunks = [];
-        mediaRecorder = new MediaRecorder(currentStream);
-        mediaRecorder.ondataavailable = e => {
-          if (e.data.size > 0) recordedChunks.push(e.data);
-        };
-        mediaRecorder.onstop = () => {
-          const blob = new Blob(recordedChunks, { type: 'video/webm' });
-          const url = URL.createObjectURL(blob);
-          const videoEl = document.createElement('video');
-          videoEl.src = url;
-          videoEl.controls = true;
-          videoEl.className = 'media-thumb';
-          gallery.appendChild(videoEl);
-        };
-        mediaRecorder.start();
-        recordButton.textContent = '⏸️';
-        recording = true;
-      } else if (mediaRecorder.state === 'recording') {
-        mediaRecorder.pause();
-        recordButton.textContent = '▶️';
-      } else if (mediaRecorder.state === 'paused') {
-        mediaRecorder.resume();
-        recordButton.textContent = '⏸️';
-      }
-    };
-
-    recordButton.addEventListener('contextmenu', e => {
-      e.preventDefault();
-      if (recording) {
-        mediaRecorder.stop();
-        recording = false;
-        recordButton.textContent = '🔴';
-      }
-    });
-
-    startCamera();
-  </script>
+  <script src="script.js"></script>
 </body>
 </html>
