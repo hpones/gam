@@ -5,13 +5,106 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Experimental Camera</title>
   <link rel="stylesheet" href="style.css" />
+  <style>
+    body {
+      margin: 0;
+      font-family: sans-serif;
+      background: #000;
+      color: #fff;
+      overflow: hidden;
+    }
+    main {
+      display: flex;
+      flex-direction: column;
+      height: 100vh;
+    }
+    .camera-container {
+      position: relative;
+      flex: 1;
+    }
+    video {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      transform: scaleX(-1);
+    }
+    canvas.hidden {
+      display: none;
+    }
+    .bottom-controls {
+      position: absolute;
+      bottom: 0;
+      width: 100%;
+      display: flex;
+      justify-content: space-around;
+      align-items: center;
+      padding: 10px;
+      background: rgba(0, 0, 0, 0.5);
+    }
+    .btn-circle {
+      width: 60px;
+      height: 60px;
+      border-radius: 50%;
+      border: none;
+      margin: 0 10px;
+    }
+    .btn-circle.white { background: white; }
+    .btn-circle.red { background: red; }
+    .btn-circle.yellow { background: yellow; }
+    .btn-circle.small-btn {
+      width: 40px;
+      height: 40px;
+      font-size: 18px;
+      background: white;
+      color: black;
+      margin: 0 5px;
+    }
+    .capture-section, .filter-section {
+      display: flex;
+      align-items: center;
+    }
+    #filterList {
+      position: absolute;
+      bottom: 70px;
+      left: 50%;
+      transform: translateX(-50%);
+      background: rgba(255, 255, 255, 0.8);
+      color: black;
+      list-style: none;
+      padding: 5px 10px;
+      border-radius: 10px;
+    }
+    #filterList.hidden {
+      display: none;
+    }
+    #filterList li {
+      padding: 5px;
+      cursor: pointer;
+    }
+    #gallery {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: start;
+      align-items: flex-start;
+      padding: 5px;
+      background: #111;
+      overflow-y: auto;
+      max-height: 150px;
+    }
+    .thumb {
+      width: 120px;
+      height: auto;
+      margin: 5px;
+      object-fit: cover;
+      border-radius: 8px;
+    }
+  </style>
 </head>
 <body>
   <main>
     <div class="camera-container">
-      <video id="video" autoplay playsinline></video>
+      <video id="video" autoplay playsinline muted></video>
       <canvas id="canvas" class="hidden"></canvas>
-
       <div class="bottom-controls">
         <div class="capture-section">
           <button id="takePhoto" class="btn-circle white"></button>
@@ -28,7 +121,6 @@
         </div>
       </div>
     </div>
-
     <section id="gallery" class="gallery"></section>
   </main>
 
