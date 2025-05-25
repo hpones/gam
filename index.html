@@ -19,6 +19,7 @@
     display: flex;
     flex-direction: column;
     position: relative;
+    overflow: hidden;
   }
   .camera-container {
     flex: 1;
@@ -29,7 +30,11 @@
     position: relative;
     overflow: hidden;
   }
-  video, canvas#videoCanvas {
+  /* Ocultar video cuando usamos canvas */
+  video {
+    display: none;
+  }
+  canvas#videoCanvas {
     max-width: 100%;
     max-height: 60vh;
     object-fit: cover;
@@ -147,6 +152,19 @@
   #fullscreenBtn:hover {
     background: rgba(255,255,0,0.7);
   }
+
+  /* Ajustes para móviles */
+  @media (max-width: 600px) {
+    .btn-circle {
+      width: 50px;
+      height: 50px;
+    }
+    .btn-circle.small-btn {
+      width: 35px;
+      height: 35px;
+      font-size: 16px;
+    }
+  }
 </style>
 </head>
 <body>
@@ -244,62 +262,87 @@
     }
 
     function getCanvasFilter(filter) {
-      switch(filter) {
-        case "grayscale": return "grayscale(100%)";
-        case "invert": return "invert(100%)";
-        case "sepia": return "sepia(100%)";
+      switch (filter) {
+        case "grayscale": return "grayscale(1)";
+        case "invert": return "invert(1)";
+        case "sepia": return "sepia(1)";
         default: return "none";
       }
     }
 
-    takePhotoBtn.addEventListener("click", () => {
+    takePhotoBtn.onclick = () => {
       captureCanvas.width = videoCanvas.width;
       captureCanvas.height = videoCanvas.height;
-
-      captureCtx.save();
-      captureCtx.clearRect(0, 0, captureCanvas.width, captureCanvas.height);
       captureCtx.filter = getCanvasFilter(currentFilter);
       captureCtx.translate(captureCanvas.width, 0);
       captureCtx.scale(-1, 1);
       captureCtx.drawImage(video, 0, 0, captureCanvas.width, captureCanvas.height);
-      captureCtx.restore();
+      captureCtx.setTransform(1, 0, 0, 1, 0, 0); // reset transform
 
-      const imageUrl = captureCanvas.toDataURL("image/png");
-      const img = document.createElement("img");
-      img.src = imageUrl;
-      img.classList.add("thumb");
-      gallery.appendChild(img);
-    });
+      captureCanvas.toBlob(blob => {
+        const imgURL = URL.createObjectURL(blob);
+        addToGallery(imgURL, 'image');
+      }, "image/jpeg");
+    };
 
-    startRecordBtn.addEventListener("click", () => {
-      if (!isRecording) {
-        recordedChunks = [];
-        canvasStream = videoCanvas.captureStream(30);
-        if(mediaStream.getAudioTracks().length > 0){
-          const audioTrack = mediaStream.getAudioTracks()[0];
-          canvasStream.addTrack(audioTrack);
-        }
-        mediaRecorder = new MediaRecorder(canvasStream);
-        mediaRecorder.ondataavailable = e => { if (e.data.size > 0) recordedChunks.push(e.data); };
-        mediaRecorder.onstop = () => {
-          const blob = new Blob(recordedChunks, { type: "video/webm" });
-          const videoUrl = URL.createObjectURL(blob);
-          const vid = document.createElement("video");
-          vid.src = videoUrl;
-          vid.controls = true;
-          vid.classList.add("thumb");
-          gallery.appendChild(vid);
-        };
-        mediaRecorder.start();
-        isRecording = true;
-        toggleRecordButtons();
+    function addToGallery(url, type) {
+      let el;
+      if(type === "image") {
+        el = document.createElement("img");
+        el.src = url;
+        el.className = "thumb";
+        el.alt = "Foto capturada";
+      } else if(type === "video") {
+        el = document.createElement("video");
+        el.src = url;
+        el.className = "thumb";
+        el.controls = true;
+        el.autoplay = false;
       }
-    });
+      gallery.appendChild(el);
+    }
 
-    function toggleRecordButtons() {
-      startRecordBtn.disabled = isRecording;
-      if (isRecording) {
-        // Crear y mostrar botones pause y stop
+    startRecordBtn.onclick = () => {
+      if (!isRecording) {
+        startRecording();
+      } else {
+        stopRecording();
+      }
+    };
+
+    function startRecording() {
+      recordedChunks = [];
+
+      // Capturar video del canvas (el que tiene el filtro)
+      canvasStream = videoCanvas.captureStream(30);
+      const audioTracks = mediaStream.getAudioTracks();
+      audioTracks.forEach(track => canvasStream.addTrack(track));
+
+      mediaRecorder = new MediaRecorder(canvasStream, { mimeType: "video/webm" });
+      mediaRecorder.ondataavailable = e => {
+        if (e.data.size > 0) recordedChunks.push(e.data);
+      };
+      mediaRecorder.onstop = () => {
+        const blob = new Blob(recordedChunks, { type: "video/webm" });
+        const videoURL = URL.createObjectURL(blob);
+        addToGallery(videoURL, "video");
+      };
+      mediaRecorder.start();
+      isRecording = true;
+      toggleRecordButtons(true);
+    }
+
+    function stopRecording() {
+      if(mediaRecorder && isRecording) {
+        mediaRecorder.stop();
+      }
+      isRecording = false;
+      toggleRecordButtons(false);
+    }
+
+    function toggleRecordButtons(recording) {
+      startRecordBtn.disabled = recording;
+      if (recording) {
         if(!pauseBtn){
           pauseBtn = document.createElement("button");
           pauseBtn.textContent = "⏸";
@@ -317,9 +360,7 @@
           stopBtn.classList.add("btn-circle", "small-btn");
           stopBtn.title = "Detener grabación";
           stopBtn.addEventListener("click", () => {
-            mediaRecorder.stop();
-            isRecording = false;
-            toggleRecordButtons();
+            stopRecording();
             if(pauseBtn) pauseBtn.remove();
             if(stopBtn) stopBtn.remove();
             pauseBtn = null;
@@ -328,7 +369,6 @@
           document.querySelector(".bottom-controls").appendChild(stopBtn);
         }
       } else {
-        // Remover botones pause y stop
         if(pauseBtn) pauseBtn.remove();
         if(stopBtn) stopBtn.remove();
         pauseBtn = null;
@@ -356,7 +396,6 @@
       }
     });
 
-    // Cambiar cámara con doble click en video
     video.addEventListener("dblclick", () => {
       facingMode = facingMode === "user" ? "environment" : "user";
       startCamera();
