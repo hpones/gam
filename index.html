@@ -7,32 +7,32 @@
   <link rel="stylesheet" href="style.css" />
 </head>
 <body>
-  <h1>Experimental Camera</h1>
-
-  <div class="filter-section">
-    <label for="filterSelect">Elige un filtro:</label>
-    <select id="filterSelect">
-      <option value="none">Sin filtro</option>
-      <option value="grayscale">Escala de grises</option>
-      <option value="invert">Invertir colores</option>
-      <option value="glitch">Glitch (básico)</option>
-      <option value="sepia">Sepia</option>
-    </select>
-  </div>
-
-  <div class="capture-section">
-    <button id="takePhoto" title="Tomar Foto" class="btn-circle white-circle" aria-label="Tomar Foto"></button>
-    <button id="startRecord" title="Grabar Video" class="btn-circle red-circle" aria-label="Grabar Video"></button>
-  </div>
-
-  <button id="openGallery" class="open-gallery-btn">Abrir Galería</button>
 
   <div class="camera-container">
     <video id="video" autoplay playsinline></video>
     <canvas id="canvas"></canvas>
   </div>
 
+  <div class="bottom-bar">
+    <div class="filter-wrapper">
+      <button id="filterToggle" class="btn-circle yellow-circle" title="Elegir filtro"></button>
+      <ul id="filterList" class="filter-list hidden">
+        <li data-filter="none">Sin filtro</li>
+        <li data-filter="grayscale">Escala de grises</li>
+        <li data-filter="invert">Invertir colores</li>
+        <li data-filter="glitch">Glitch</li>
+        <li data-filter="sepia">Sepia</li>
+      </ul>
+    </div>
+
+    <div class="capture-section">
+      <button id="takePhoto" title="Tomar Foto" class="btn-circle white-circle" aria-label="Tomar Foto"></button>
+      <button id="startRecord" title="Grabar Video" class="btn-circle red-circle" aria-label="Grabar Video"></button>
+    </div>
+
+    <button id="openGallery" class="open-gallery-btn">Abrir Galería</button>
+  </div>
+
   <script src="app.js"></script>
 </body>
 </html>
-
