@@ -7,37 +7,34 @@
   <link rel="stylesheet" href="style.css" />
 </head>
 <body>
-  <video id="video" autoplay playsinline></video>
+  <div id="camera-container">
+    <video id="video" autoplay playsinline></video>
+    <canvas id="canvas" style="display: none;"></canvas>
 
-  <!-- Botones principales -->
-  <div id="controls">
-    <button id="photoBtn" class="circle white"></button>
-    <button id="videoBtn" class="circle red"></button>
-    <button id="filterToggle" class="circle yellow"></button>
+    <div id="controls">
+      <button id="photoBtn" class="circle white"></button>
+      <button id="videoBtn" class="circle red"></button>
+      <button id="filterToggle" class="circle yellow"></button>
+    </div>
+
+    <div id="video-controls" style="display: none;">
+      <button id="pauseBtn" class="small gray">⏸</button>
+      <button id="stopBtn" class="small gray">⏹</button>
+    </div>
+
+    <button id="fullscreenBtn" class="fullscreen-toggle">⛶</button>
+
+    <div id="filterMenu" class="filter-menu hidden">
+      <div data-filter="none">Sin filtro</div>
+      <div data-filter="invert">Invertir</div>
+      <div data-filter="grayscale">Blanco y negro</div>
+      <div data-filter="sepia">Sepia</div>
+      <div data-filter="glitch">Glitch</div>
+    </div>
   </div>
 
-  <!-- Botones secundarios durante grabación -->
-  <div id="video-controls" style="display: none;">
-    <button id="pauseBtn" class="circle gray">⏸</button>
-    <button id="stopBtn" class="circle gray">■</button>
-  </div>
+  <div id="gallery" class="gallery"></div>
 
-  <!-- Botón de pantalla completa -->
-  <button id="fullscreenBtn" class="fullscreen-toggle">⛶</button>
-
-  <!-- Contenedor para imágenes/videos capturados -->
-  <div id="gallery"></div>
-
-  <!-- Filtros -->
-  <div id="filterMenu" class="hidden">
-    <button data-filter="none">Ninguno</button>
-    <button data-filter="glitch">Glitch</button>
-    <button data-filter="invert">Invertir</button>
-    <button data-filter="grayscale">Escala de grises</button>
-    <button data-filter="sepia">Sepia</button>
-  </div>
-
-  <canvas id="canvas" class="hidden"></canvas>
   <script src="script.js"></script>
 </body>
 </html>
