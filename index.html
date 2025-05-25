@@ -8,22 +8,24 @@
 </head>
 <body>
   <main>
-    <video id="video" autoplay playsinline></video>
-    <canvas id="canvas" class="hidden"></canvas>
+    <div class="camera-container">
+      <video id="video" autoplay playsinline></video>
+      <canvas id="canvas" class="hidden"></canvas>
 
-    <div class="bottom-controls">
-      <div class="capture-section">
-        <button id="takePhoto" class="btn-circle white"></button>
-        <button id="startRecord" class="btn-circle red"></button>
-      </div>
-      <div class="filter-section">
-        <button id="filterToggle" class="btn-circle yellow"></button>
-        <ul id="filterList" class="hidden">
-          <li data-filter="none">Sin filtro</li>
-          <li data-filter="grayscale">Gris</li>
-          <li data-filter="invert">Invertir</li>
-          <li data-filter="sepia">Sepia</li>
-        </ul>
+      <div class="bottom-controls">
+        <div class="capture-section">
+          <button id="takePhoto" class="btn-circle white"></button>
+          <button id="startRecord" class="btn-circle red"></button>
+        </div>
+        <div class="filter-section">
+          <button id="filterToggle" class="btn-circle yellow"></button>
+          <ul id="filterList" class="hidden">
+            <li data-filter="none">Sin filtro</li>
+            <li data-filter="grayscale">Gris</li>
+            <li data-filter="invert">Invertir</li>
+            <li data-filter="sepia">Sepia</li>
+          </ul>
+        </div>
       </div>
     </div>
 
@@ -59,31 +61,20 @@
 
     function applyFilter(filter) {
       video.style.filter = "";
-      canvas.style.filter = "";
       switch (filter) {
-        case "grayscale":
-          video.style.filter = "grayscale(1)";
-          break;
-        case "invert":
-          video.style.filter = "invert(1)";
-          break;
-        case "sepia":
-          video.style.filter = "sepia(1)";
-          break;
-        default:
-          break;
+        case "grayscale": video.style.filter = "grayscale(1)"; break;
+        case "invert": video.style.filter = "invert(1)"; break;
+        case "sepia": video.style.filter = "sepia(1)"; break;
       }
     }
 
     takePhotoBtn.addEventListener("click", () => {
       canvas.width = video.videoWidth;
       canvas.height = video.videoHeight;
-
       const ctx = canvas.getContext("2d");
       ctx.translate(canvas.width, 0);
       ctx.scale(-1, 1);
       ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-
       const imageUrl = canvas.toDataURL("image/png");
       const img = document.createElement("img");
       img.src = imageUrl;
@@ -95,22 +86,16 @@
       if (!isRecording) {
         mediaRecorder = new MediaRecorder(mediaStream);
         recordedChunks = [];
-
-        mediaRecorder.ondataavailable = (e) => {
-          if (e.data.size > 0) recordedChunks.push(e.data);
-        };
-
+        mediaRecorder.ondataavailable = (e) => { if (e.data.size > 0) recordedChunks.push(e.data); };
         mediaRecorder.onstop = () => {
           const blob = new Blob(recordedChunks, { type: "video/webm" });
           const videoUrl = URL.createObjectURL(blob);
-
           const vid = document.createElement("video");
           vid.src = videoUrl;
           vid.controls = true;
           vid.classList.add("thumb");
           gallery.appendChild(vid);
         };
-
         mediaRecorder.start();
         isRecording = true;
         toggleRecordButtons();
@@ -119,7 +104,6 @@
 
     function toggleRecordButtons() {
       startRecordBtn.classList.add("hidden");
-
       pauseBtn = document.createElement("button");
       pauseBtn.className = "btn-circle small-btn";
       pauseBtn.innerText = "⏸️";
@@ -132,7 +116,6 @@
           pauseBtn.innerText = "⏸️";
         }
       };
-
       stopBtn = document.createElement("button");
       stopBtn.className = "btn-circle small-btn";
       stopBtn.innerText = "⏹️";
@@ -143,7 +126,6 @@
         stopBtn.remove();
         startRecordBtn.classList.remove("hidden");
       };
-
       document.querySelector(".capture-section").appendChild(pauseBtn);
       document.querySelector(".capture-section").appendChild(stopBtn);
     }
