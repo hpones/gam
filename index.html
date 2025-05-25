@@ -2,9 +2,8 @@
 <html lang="es">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Experimental Camera</title>
-  <link rel="stylesheet" href="style.css" />
   <style>
     body {
       margin: 0;
@@ -12,34 +11,42 @@
       background: #000;
       color: #fff;
       overflow: hidden;
-    }
-    main {
       display: flex;
       flex-direction: column;
       height: 100vh;
     }
-    .camera-container {
-      position: relative;
+    main {
       flex: 1;
+      display: flex;
+      flex-direction: column;
+      position: relative;
+    }
+    .camera-container {
+      flex: 1;
+      position: relative;
+      background: black;
+      overflow: hidden;
+      display: flex;
+      justify-content: center;
+      align-items: center;
     }
     video {
-      width: 100%;
-      height: 100%;
+      max-width: 100%;
+      max-height: 100%;
       object-fit: cover;
       transform: scaleX(-1);
+      filter: none;
+      user-select: none;
     }
     canvas.hidden {
       display: none;
     }
     .bottom-controls {
-      position: absolute;
-      bottom: 0;
-      width: 100%;
       display: flex;
       justify-content: space-around;
       align-items: center;
       padding: 10px;
-      background: rgba(0, 0, 0, 0.5);
+      background: rgba(0,0,0,0.5);
     }
     .btn-circle {
       width: 60px;
@@ -47,6 +54,7 @@
       border-radius: 50%;
       border: none;
       margin: 0 10px;
+      cursor: pointer;
     }
     .btn-circle.white { background: white; }
     .btn-circle.red { background: red; }
@@ -59,10 +67,6 @@
       color: black;
       margin: 0 5px;
     }
-    .capture-section, .filter-section {
-      display: flex;
-      align-items: center;
-    }
     #filterList {
       position: absolute;
       bottom: 70px;
@@ -73,6 +77,7 @@
       list-style: none;
       padding: 5px 10px;
       border-radius: 10px;
+      z-index: 10;
     }
     #filterList.hidden {
       display: none;
@@ -80,6 +85,7 @@
     #filterList li {
       padding: 5px;
       cursor: pointer;
+      user-select: none;
     }
     #gallery {
       display: flex;
@@ -97,22 +103,40 @@
       margin: 5px;
       object-fit: cover;
       border-radius: 8px;
+      user-select: none;
+    }
+    #fullscreenBtn {
+      position: absolute;
+      top: 10px;
+      right: 10px;
+      background: rgba(255,255,0,0.8);
+      border: none;
+      border-radius: 50%;
+      width: 40px;
+      height: 40px;
+      cursor: pointer;
+      font-weight: bold;
+      font-size: 18px;
+      color: black;
+      z-index: 20;
+      user-select: none;
     }
   </style>
 </head>
 <body>
   <main>
-    <div class="camera-container">
+    <div class="camera-container" id="cameraContainer">
       <video id="video" autoplay playsinline muted></video>
       <canvas id="canvas" class="hidden"></canvas>
+      <button id="fullscreenBtn" title="Pantalla completa">⬜</button>
       <div class="bottom-controls">
         <div class="capture-section">
-          <button id="takePhoto" class="btn-circle white"></button>
-          <button id="startRecord" class="btn-circle red"></button>
+          <button id="takePhoto" class="btn-circle white" title="Tomar foto"></button>
+          <button id="startRecord" class="btn-circle red" title="Grabar video"></button>
         </div>
         <div class="filter-section">
-          <button id="filterToggle" class="btn-circle yellow"></button>
-          <ul id="filterList" class="hidden">
+          <button id="filterToggle" class="btn-circle yellow" title="Seleccionar filtro"></button>
+          <ul id="filterList" class="hidden" aria-label="Lista de filtros">
             <li data-filter="none">Sin filtro</li>
             <li data-filter="grayscale">Gris</li>
             <li data-filter="invert">Invertir</li>
@@ -121,7 +145,7 @@
         </div>
       </div>
     </div>
-    <section id="gallery" class="gallery"></section>
+    <section id="gallery" aria-label="Galería de fotos y videos"></section>
   </main>
 
   <script>
@@ -132,6 +156,8 @@
     const filterToggle = document.getElementById("filterToggle");
     const filterList = document.getElementById("filterList");
     const gallery = document.getElementById("gallery");
+    const fullscreenBtn = document.getElementById("fullscreenBtn");
+    const cameraContainer = document.getElementById("cameraContainer");
 
     let currentFilter = "none";
     let mediaStream = null;
@@ -140,11 +166,16 @@
     let isRecording = false;
     let pauseBtn = null;
     let stopBtn = null;
+    let facingMode = "user"; // front camera
 
-    async function initCamera() {
+    async function startCamera() {
+      if(mediaStream) {
+        mediaStream.getTracks().forEach(track => track.stop());
+      }
       try {
-        mediaStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "user" }, audio: true });
+        mediaStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode }, audio: true });
         video.srcObject = mediaStream;
+        applyFilter(currentFilter);
       } catch (err) {
         alert("No se pudo acceder a la cámara.");
         console.error(err);
@@ -152,11 +183,12 @@
     }
 
     function applyFilter(filter) {
-      video.style.filter = "";
+      currentFilter = filter;
       switch (filter) {
         case "grayscale": video.style.filter = "grayscale(1)"; break;
         case "invert": video.style.filter = "invert(1)"; break;
         case "sepia": video.style.filter = "sepia(1)"; break;
+        default: video.style.filter = "none";
       }
     }
 
@@ -164,6 +196,9 @@
       canvas.width = video.videoWidth;
       canvas.height = video.videoHeight;
       const ctx = canvas.getContext("2d");
+      // Aplicar filtro manualmente en canvas para que la foto tenga el efecto
+      ctx.filter = getCanvasFilter(currentFilter);
+      // Voltear la imagen horizontalmente para que coincida con el video
       ctx.translate(canvas.width, 0);
       ctx.scale(-1, 1);
       ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
@@ -174,11 +209,20 @@
       gallery.appendChild(img);
     });
 
+    function getCanvasFilter(filter) {
+      switch(filter) {
+        case "grayscale": return "grayscale(100%)";
+        case "invert": return "invert(100%)";
+        case "sepia": return "sepia(100%)";
+        default: return "none";
+      }
+    }
+
     startRecordBtn.addEventListener("click", () => {
       if (!isRecording) {
-        mediaRecorder = new MediaRecorder(mediaStream);
         recordedChunks = [];
-        mediaRecorder.ondataavailable = (e) => { if (e.data.size > 0) recordedChunks.push(e.data); };
+        mediaRecorder = new MediaRecorder(mediaStream);
+        mediaRecorder.ondataavailable = e => { if (e.data.size > 0) recordedChunks.push(e.data); };
         mediaRecorder.onstop = () => {
           const blob = new Blob(recordedChunks, { type: "video/webm" });
           const videoUrl = URL.createObjectURL(blob);
@@ -195,10 +239,12 @@
     });
 
     function toggleRecordButtons() {
-      startRecordBtn.classList.add("hidden");
+      startRecordBtn.style.display = "none";
+
       pauseBtn = document.createElement("button");
       pauseBtn.className = "btn-circle small-btn";
       pauseBtn.innerText = "⏸️";
+      pauseBtn.title = "Pausar/Reanudar";
       pauseBtn.onclick = () => {
         if (mediaRecorder.state === "recording") {
           mediaRecorder.pause();
@@ -208,16 +254,19 @@
           pauseBtn.innerText = "⏸️";
         }
       };
+
       stopBtn = document.createElement("button");
       stopBtn.className = "btn-circle small-btn";
       stopBtn.innerText = "⏹️";
+      stopBtn.title = "Detener grabación";
       stopBtn.onclick = () => {
         mediaRecorder.stop();
         isRecording = false;
         pauseBtn.remove();
         stopBtn.remove();
-        startRecordBtn.classList.remove("hidden");
+        startRecordBtn.style.display = "inline-block";
       };
+
       document.querySelector(".capture-section").appendChild(pauseBtn);
       document.querySelector(".capture-section").appendChild(stopBtn);
     }
@@ -226,15 +275,34 @@
       filterList.classList.toggle("hidden");
     });
 
-    filterList.querySelectorAll("li").forEach((item) => {
+    filterList.querySelectorAll("li").forEach(item => {
       item.addEventListener("click", () => {
-        currentFilter = item.dataset.filter;
-        applyFilter(currentFilter);
+        applyFilter(item.dataset.filter);
         filterList.classList.add("hidden");
       });
     });
 
-    initCamera();
+    // Doble click para cambiar cámara
+    let lastClickTime = 0;
+    video.addEventListener("click", () => {
+      const now = new Date().getTime();
+      if (now - lastClickTime < 400) { // doble click detectado
+        facingMode = facingMode === "user" ? "environment" : "user";
+        startCamera();
+      }
+      lastClickTime = now;
+    });
+
+    // Pantalla completa toggle
+    fullscreenBtn.addEventListener("click", () => {
+      if (!document.fullscreenElement) {
+        cameraContainer.requestFullscreen();
+      } else {
+        document.exitFullscreen();
+      }
+    });
+
+    startCamera();
   </script>
 </body>
 </html>
