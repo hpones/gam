@@ -2,37 +2,165 @@
 <html lang="es">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>App cámara con filtros</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Experimental Camera</title>
   <link rel="stylesheet" href="style.css" />
 </head>
 <body>
+  <main>
+    <video id="video" autoplay playsinline></video>
+    <canvas id="canvas" class="hidden"></canvas>
 
-  <div class="camera-container">
-    <video id="video" autoplay playsinline class="video-mirrored"></video>
-    <canvas id="canvas"></canvas>
-  </div>
-
-  <div class="bottom-bar">
-    <div class="filter-wrapper">
-      <button id="filterToggle" class="btn-circle yellow-circle" title="Elegir filtro"></button>
-      <ul id="filterList" class="filter-list hidden" tabindex="0" aria-label="Lista de filtros">
-        <li data-filter="none" tabindex="0">Sin filtro</li>
-        <li data-filter="grayscale" tabindex="0">Escala de grises</li>
-        <li data-filter="invert" tabindex="0">Invertir colores</li>
-        <li data-filter="glitch" tabindex="0">Glitch</li>
-        <li data-filter="sepia" tabindex="0">Sepia</li>
-      </ul>
+    <div class="bottom-controls">
+      <div class="capture-section">
+        <button id="takePhoto" class="btn-circle white"></button>
+        <button id="startRecord" class="btn-circle red"></button>
+      </div>
+      <div class="filter-section">
+        <button id="filterToggle" class="btn-circle yellow"></button>
+        <ul id="filterList" class="hidden">
+          <li data-filter="none">Sin filtro</li>
+          <li data-filter="grayscale">Gris</li>
+          <li data-filter="invert">Invertir</li>
+          <li data-filter="sepia">Sepia</li>
+        </ul>
+      </div>
     </div>
 
-    <div class="capture-section">
-      <button id="takePhoto" title="Tomar Foto" class="btn-circle white-circle" aria-label="Tomar Foto"></button>
-      <button id="startRecord" title="Grabar Video" class="btn-circle red-circle" aria-label="Grabar Video"></button>
-    </div>
+    <section id="gallery" class="gallery"></section>
+  </main>
 
-    <button id="openGallery" class="open-gallery-btn" title="Abrir Galería">Galería</button>
-  </div>
+  <script>
+    const video = document.getElementById("video");
+    const canvas = document.getElementById("canvas");
+    const takePhotoBtn = document.getElementById("takePhoto");
+    const startRecordBtn = document.getElementById("startRecord");
+    const filterToggle = document.getElementById("filterToggle");
+    const filterList = document.getElementById("filterList");
+    const gallery = document.getElementById("gallery");
 
-  <script src="app.js"></script>
+    let currentFilter = "none";
+    let mediaStream = null;
+    let mediaRecorder = null;
+    let recordedChunks = [];
+    let isRecording = false;
+    let pauseBtn = null;
+    let stopBtn = null;
+
+    async function initCamera() {
+      try {
+        mediaStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "user" }, audio: true });
+        video.srcObject = mediaStream;
+      } catch (err) {
+        alert("No se pudo acceder a la cámara.");
+        console.error(err);
+      }
+    }
+
+    function applyFilter(filter) {
+      video.style.filter = "";
+      canvas.style.filter = "";
+      switch (filter) {
+        case "grayscale":
+          video.style.filter = "grayscale(1)";
+          break;
+        case "invert":
+          video.style.filter = "invert(1)";
+          break;
+        case "sepia":
+          video.style.filter = "sepia(1)";
+          break;
+        default:
+          break;
+      }
+    }
+
+    takePhotoBtn.addEventListener("click", () => {
+      canvas.width = video.videoWidth;
+      canvas.height = video.videoHeight;
+
+      const ctx = canvas.getContext("2d");
+      ctx.translate(canvas.width, 0);
+      ctx.scale(-1, 1);
+      ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+
+      const imageUrl = canvas.toDataURL("image/png");
+      const img = document.createElement("img");
+      img.src = imageUrl;
+      img.classList.add("thumb");
+      gallery.appendChild(img);
+    });
+
+    startRecordBtn.addEventListener("click", () => {
+      if (!isRecording) {
+        mediaRecorder = new MediaRecorder(mediaStream);
+        recordedChunks = [];
+
+        mediaRecorder.ondataavailable = (e) => {
+          if (e.data.size > 0) recordedChunks.push(e.data);
+        };
+
+        mediaRecorder.onstop = () => {
+          const blob = new Blob(recordedChunks, { type: "video/webm" });
+          const videoUrl = URL.createObjectURL(blob);
+
+          const vid = document.createElement("video");
+          vid.src = videoUrl;
+          vid.controls = true;
+          vid.classList.add("thumb");
+          gallery.appendChild(vid);
+        };
+
+        mediaRecorder.start();
+        isRecording = true;
+        toggleRecordButtons();
+      }
+    });
+
+    function toggleRecordButtons() {
+      startRecordBtn.classList.add("hidden");
+
+      pauseBtn = document.createElement("button");
+      pauseBtn.className = "btn-circle small-btn";
+      pauseBtn.innerText = "⏸️";
+      pauseBtn.onclick = () => {
+        if (mediaRecorder.state === "recording") {
+          mediaRecorder.pause();
+          pauseBtn.innerText = "▶️";
+        } else {
+          mediaRecorder.resume();
+          pauseBtn.innerText = "⏸️";
+        }
+      };
+
+      stopBtn = document.createElement("button");
+      stopBtn.className = "btn-circle small-btn";
+      stopBtn.innerText = "⏹️";
+      stopBtn.onclick = () => {
+        mediaRecorder.stop();
+        isRecording = false;
+        pauseBtn.remove();
+        stopBtn.remove();
+        startRecordBtn.classList.remove("hidden");
+      };
+
+      document.querySelector(".capture-section").appendChild(pauseBtn);
+      document.querySelector(".capture-section").appendChild(stopBtn);
+    }
+
+    filterToggle.addEventListener("click", () => {
+      filterList.classList.toggle("hidden");
+    });
+
+    filterList.querySelectorAll("li").forEach((item) => {
+      item.addEventListener("click", () => {
+        currentFilter = item.dataset.filter;
+        applyFilter(currentFilter);
+        filterList.classList.add("hidden");
+      });
+    });
+
+    initCamera();
+  </script>
 </body>
 </html>
