@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="es">
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
@@ -12,20 +12,20 @@
     <video id="video" autoplay muted playsinline></video>
     <canvas id="canvas" style="display: none;"></canvas>
 
-    <!-- Botones -->
+    <!-- Botones de captura -->
     <div id="controls">
       <button id="photo-btn" class="circle white"></button>
       <button id="video-btn" class="circle red"></button>
       <button id="filters-btn" class="circle yellow"></button>
     </div>
 
-    <!-- Controles de video activos -->
-    <div id="video-controls" style="display: none;">
+    <!-- Controles durante grabación -->
+    <div id="video-controls" class="hidden">
       <button id="pause-btn" class="circle small gray">⏸</button>
       <button id="stop-btn" class="circle small gray">■</button>
     </div>
 
-    <!-- Botón de pantalla completa -->
+    <!-- Botón pantalla completa -->
     <button id="fullscreen-btn" class="fullscreen-icon">⛶</button>
 
     <!-- Selector de filtros -->
