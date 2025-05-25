@@ -1,56 +1,89 @@
 const video = document.getElementById("video");
 const canvas = document.getElementById("canvas");
-const photoBtn = document.getElementById("photo-btn");
-const videoBtn = document.getElementById("video-btn");
-const pauseBtn = document.getElementById("pause-btn");
-const stopBtn = document.getElementById("stop-btn");
-const filterBtn = document.getElementById("filters-btn");
-const filterSelect = document.getElementById("filter-select");
-const filterSelector = document.getElementById("filter-selector");
-const fullscreenBtn = document.getElementById("fullscreen-btn");
-const gallery = document.getElementById("media");
+const photoBtn = document.getElementById("photoBtn");
+const videoBtn = document.getElementById("videoBtn");
+const filterToggle = document.getElementById("filterToggle");
+const filterMenu = document.getElementById("filterMenu");
+const gallery = document.getElementById("gallery");
+const fullscreenBtn = document.getElementById("fullscreenBtn");
+const pauseBtn = document.getElementById("pauseBtn");
+const stopBtn = document.getElementById("stopBtn");
+const controls = document.getElementById("controls");
+const videoControls = document.getElementById("video-controls");
 
-let stream;
+let currentFilter = "none";
 let mediaRecorder;
 let chunks = [];
-let currentFilter = "none";
-let usingFront = true;
+let stream;
+let isPaused = false;
+let usingFrontCamera = true;
 
-async function initCamera() {
+async function startCamera() {
   try {
     stream = await navigator.mediaDevices.getUserMedia({
-      video: { facingMode: usingFront ? "user" : "environment" },
+      video: { facingMode: usingFrontCamera ? "user" : "environment" },
       audio: true
     });
     video.srcObject = stream;
-    applyFilter();
-  } catch (e) {
-    alert("Error accediendo a la cámara");
-    console.error(e);
+  } catch (err) {
+    alert("Error al acceder a la cámara: " + err);
   }
 }
 
-initCamera();
+startCamera();
 
-document.body.ondblclick = () => {
-  usingFront = !usingFront;
+// Doble click cambia cámara
+video.addEventListener("dblclick", async () => {
+  usingFrontCamera = !usingFrontCamera;
   if (stream) {
-    stream.getTracks().forEach(t => t.stop());
+    stream.getTracks().forEach(track => track.stop());
   }
-  initCamera();
+  await startCamera();
+});
+
+fullscreenBtn.onclick = () => {
+  if (!document.fullscreenElement) {
+    document.documentElement.requestFullscreen();
+  } else {
+    document.exitFullscreen();
+  }
 };
 
+// Filtros
+filterToggle.onclick = () => {
+  filterMenu.classList.toggle("hidden");
+};
+
+filterMenu.addEventListener("click", e => {
+  if (e.target.dataset.filter) {
+    currentFilter = e.target.dataset.filter;
+    video.style.filter = getCssFilter(currentFilter);
+  }
+});
+
+function getCssFilter(name) {
+  switch (name) {
+    case "invert": return "invert(1)";
+    case "grayscale": return "grayscale(1)";
+    case "sepia": return "sepia(1)";
+    case "glitch": return "contrast(2) hue-rotate(90deg)";
+    default: return "none";
+  }
+}
+
+// Captura de foto
 photoBtn.onclick = () => {
+  const context = canvas.getContext("2d");
   canvas.width = video.videoWidth;
   canvas.height = video.videoHeight;
-  const ctx = canvas.getContext("2d");
-  ctx.filter = getFilterCSS();
-  ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-  const img = new Image();
+  context.filter = getCssFilter(currentFilter);
+  context.drawImage(video, 0, 0, canvas.width, canvas.height);
+  const img = document.createElement("img");
   img.src = canvas.toDataURL("image/png");
   gallery.appendChild(img);
 };
 
+// Grabación de video
 videoBtn.onclick = () => {
   if (mediaRecorder && mediaRecorder.state === "recording") return;
 
@@ -68,62 +101,26 @@ videoBtn.onclick = () => {
   };
 
   mediaRecorder.start();
-  document.getElementById("controls").classList.add("hidden");
-  document.getElementById("video-controls").classList.remove("hidden");
+
+  controls.style.display = "none";
+  videoControls.style.display = "flex";
 };
 
 pauseBtn.onclick = () => {
   if (!mediaRecorder) return;
-  if (mediaRecorder.state === "paused") {
-    mediaRecorder.resume();
-  } else if (mediaRecorder.state === "recording") {
+  if (!isPaused) {
     mediaRecorder.pause();
+    isPaused = true;
+  } else {
+    mediaRecorder.resume();
+    isPaused = false;
   }
 };
 
 stopBtn.onclick = () => {
   if (!mediaRecorder) return;
   mediaRecorder.stop();
-  document.getElementById("controls").classList.remove("hidden");
-  document.getElementById("video-controls").classList.add("hidden");
+
+  controls.style.display = "flex";
+  videoControls.style.display = "none";
 };
-
-filterBtn.onclick = () => {
-  filterSelector.classList.toggle("hidden");
-};
-
-filterSelect.oninput = () => {
-  currentFilter = filterSelect.value;
-  applyFilter();
-};
-
-function applyFilter() {
-  video.style.filter = getFilterCSS();
-}
-
-function getFilterCSS() {
-  switch (currentFilter) {
-    case "grayscale": return "grayscale(1)";
-    case "sepia": return "sepia(1)";
-    case "invert": return "invert(1)";
-    case "glitch": return "contrast(2) hue-rotate(90deg)";
-    default: return "none";
-  }
-}
-
-fullscreenBtn.onclick = () => {
-  const container = document.getElementById("camera-container");
-  if (!document.fullscreenElement) {
-    container.requestFullscreen();
-    fadeButtons(0.2);
-  } else {
-    document.exitFullscreen();
-    fadeButtons(0.9);
-  }
-};
-
-function fadeButtons(opacity) {
-  document.querySelectorAll(".circle, .fullscreen-icon").forEach(el => {
-    el.style.opacity = opacity;
-  });
-}
