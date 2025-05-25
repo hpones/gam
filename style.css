@@ -1,5 +1,3 @@
-/* style.css */
-
 body {
   margin: 0;
   padding: 0;
@@ -22,7 +20,7 @@ main {
 
 video {
   width: 100%;
-  transform: scaleX(-1); /* Invertir la imagen */
+  transform: scaleX(-1); /* Invertir la imagen para modo selfie */
 }
 
 canvas.hidden {
