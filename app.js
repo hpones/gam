@@ -5,12 +5,14 @@ const filterSelect = document.getElementById('filterSelect');
 
 const takePhotoBtn = document.getElementById('takePhoto');
 const startRecordBtn = document.getElementById('startRecord');
-const stopRecordBtn = document.getElementById('stopRecord');
-const gallery = document.getElementById('gallery');
+const openGalleryBtn = document.getElementById('openGallery');
 
 let currentFilter = 'none';
 let mediaRecorder;
 let recordedChunks = [];
+let galleryWindow = null;
+let isRecording = false;
+let isPaused = false;
 
 async function setupCamera() {
   try {
@@ -104,22 +106,12 @@ filterSelect.addEventListener('change', (e) => {
 
 takePhotoBtn.addEventListener('click', () => {
   const dataURL = canvas.toDataURL('image/png');
-  const img = document.createElement('img');
-  img.src = dataURL;
-
-  const item = document.createElement('div');
-  item.className = 'gallery-item';
-  item.appendChild(img);
-
-  const del = document.createElement('button');
-  del.textContent = '🗑 Eliminar';
-  del.onclick = () => item.remove();
-  item.appendChild(del);
-
-  gallery.appendChild(item);
+  sendToGallery({type: 'photo', dataURL});
 });
 
 startRecordBtn.addEventListener('click', () => {
+  if (isRecording) return;
+
   recordedChunks = [];
   const stream = canvas.captureStream(30);
   mediaRecorder = new MediaRecorder(stream, { mimeType: 'video/webm' });
@@ -131,34 +123,96 @@ startRecordBtn.addEventListener('click', () => {
   mediaRecorder.onstop = () => {
     const blob = new Blob(recordedChunks, { type: 'video/webm' });
     const url = URL.createObjectURL(blob);
-
-    const videoEl = document.createElement('video');
-    videoEl.src = url;
-    videoEl.controls = true;
-
-    const item = document.createElement('div');
-    item.className = 'gallery-item';
-    item.appendChild(videoEl);
-
-    const del = document.createElement('button');
-    del.textContent = '🗑 Eliminar';
-    del.onclick = () => item.remove();
-    item.appendChild(del);
-
-    gallery.appendChild(item);
+    sendToGallery({type: 'video', url, blob});
+    resetRecordButtons();
   };
 
   mediaRecorder.start();
-  startRecordBtn.disabled = true;
-  stopRecordBtn.disabled = false;
+  isRecording = true;
+  isPaused = false;
+  updateRecordButtons();
 });
 
-stopRecordBtn.addEventListener('click', () => {
-  if (mediaRecorder && mediaRecorder.state !== 'inactive') {
-    mediaRecorder.stop();
+function pauseRecording() {
+  if (!mediaRecorder) return;
+  if (isPaused) {
+    mediaRecorder.resume();
+    isPaused = false;
+  } else {
+    mediaRecorder.pause();
+    isPaused = true;
   }
-  startRecordBtn.disabled = false;
-  stopRecordBtn.disabled = true;
+  updateRecordButtons();
+}
+
+function stopRecording() {
+  if (!mediaRecorder) return;
+  mediaRecorder.stop();
+  isRecording = false;
+  isPaused = false;
+  updateRecordButtons();
+}
+
+function updateRecordButtons() {
+  if (isRecording) {
+    startRecordBtn.style.display = 'none';
+
+    // Crear botones de pausar y detener si no existen
+    if (!document.getElementById('pauseRecordBtn')) {
+      const pauseBtn = document.createElement('button');
+      pauseBtn.id = 'pauseRecordBtn';
+      pauseBtn.className = 'btn-circle small-btn';
+      pauseBtn.title = 'Pausar / Reanudar';
+      pauseBtn.innerHTML = '⏸️';
+      pauseBtn.onclick = pauseRecording;
+      startRecordBtn.parentNode.appendChild(pauseBtn);
+    }
+    if (!document.getElementById('stopRecordBtn')) {
+      const stopBtn = document.createElement('button');
+      stopBtn.id = 'stopRecordBtn';
+      stopBtn.className = 'btn-circle small-btn';
+      stopBtn.title = 'Detener grabación';
+      stopBtn.innerHTML = '⏹️';
+      stopBtn.onclick = stopRecording;
+      startRecordBtn.parentNode.appendChild(stopBtn);
+    }
+    // Actualizar icono pausa o play
+    const pauseBtn = document.getElementById('pauseRecordBtn');
+    pauseBtn.innerHTML = isPaused ? '▶️' : '⏸️';
+
+  } else {
+    startRecordBtn.style.display = 'inline-block';
+    const pauseBtn = document.getElementById('pauseRecordBtn');
+    const stopBtn = document.getElementById('stopRecordBtn');
+    if (pauseBtn) pauseBtn.remove();
+    if (stopBtn) stopBtn.remove();
+  }
+}
+
+function resetRecordButtons() {
+  isRecording = false;
+  isPaused = false;
+  updateRecordButtons();
+}
+
+// Comunicación con galería en ventana separada
+function sendToGallery(data) {
+  if (!galleryWindow || galleryWindow.closed) {
+    galleryWindow = window.open('gallery.html', 'Galería Experimental Camera', 'width=600,height=400');
+    galleryWindow.onload = () => {
+      galleryWindow.postMessage({ type: 'addItem', data }, '*');
+    };
+  } else {
+    galleryWindow.postMessage({ type: 'addItem', data }, '*');
+  }
+}
+
+openGalleryBtn.addEventListener('click', () => {
+  if (!galleryWindow || galleryWindow.closed) {
+    galleryWindow = window.open('gallery.html', 'Galería Experimental Camera', 'width=600,height=400');
+  } else {
+    galleryWindow.focus();
+  }
 });
 
-setupCamera();
+window.addEventListener('load', setupCamera);
