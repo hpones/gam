@@ -23,6 +23,7 @@ async function initCamera() {
       audio: true
     });
     video.srcObject = stream;
+    applyFilter();
   } catch (e) {
     alert("Error accediendo a la cámara");
     console.error(e);
@@ -52,8 +53,10 @@ photoBtn.onclick = () => {
 
 videoBtn.onclick = () => {
   if (mediaRecorder && mediaRecorder.state === "recording") return;
+
   mediaRecorder = new MediaRecorder(stream);
   chunks = [];
+
   mediaRecorder.ondataavailable = e => chunks.push(e.data);
   mediaRecorder.onstop = () => {
     const blob = new Blob(chunks, { type: "video/webm" });
@@ -63,9 +66,10 @@ videoBtn.onclick = () => {
     videoEl.controls = true;
     gallery.appendChild(videoEl);
   };
+
   mediaRecorder.start();
-  document.getElementById("controls").style.display = "none";
-  document.getElementById("video-controls").style.display = "flex";
+  document.getElementById("controls").classList.add("hidden");
+  document.getElementById("video-controls").classList.remove("hidden");
 };
 
 pauseBtn.onclick = () => {
@@ -80,8 +84,8 @@ pauseBtn.onclick = () => {
 stopBtn.onclick = () => {
   if (!mediaRecorder) return;
   mediaRecorder.stop();
-  document.getElementById("controls").style.display = "flex";
-  document.getElementById("video-controls").style.display = "none";
+  document.getElementById("controls").classList.remove("hidden");
+  document.getElementById("video-controls").classList.add("hidden");
 };
 
 filterBtn.onclick = () => {
