@@ -1,79 +1,140 @@
 <!DOCTYPE html>
 <html lang="es">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Experimental Camera</title>
-  <style>
-    body, html {
-      margin: 0; padding: 0; height: 100%; background: #222; color: #fff; font-family: Arial, sans-serif;
-      display: flex; flex-direction: column; align-items: center; justify-content: flex-start;
-    }
-    #cameraContainer {
-      position: relative;
-      width: 100vw;
-      max-width: 600px;
-      height: 80vh;
-      background: black;
-      overflow: hidden;
-    }
-    video {
-      display: none;
-    }
-    #videoCanvas {
-      width: 100%;
-      height: 100%;
-      background: black;
-      display: block;
-    }
-  </style>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Experimental Camera</title>
+<style>
+  body, html {
+    margin: 0; padding: 0; height: 100%; background: #222; color: #fff; font-family: Arial, sans-serif;
+    display: flex; flex-direction: column; align-items: center; justify-content: flex-start;
+  }
+  #cameraContainer {
+    position: relative;
+    width: 100vw;
+    max-width: 600px;
+    height: 80vh;
+    background: black;
+    overflow: hidden;
+  }
+  video {
+    display: none;
+  }
+  #videoCanvas {
+    width: 100%;
+    height: 100%;
+    background: black;
+    display: block;
+  }
+  #controls {
+    width: 100vw;
+    max-width: 600px;
+    display: flex;
+    justify-content: center;
+    gap: 20px;
+    padding: 10px 0;
+    background: #111;
+    position: fixed;
+    bottom: 0;
+  }
+  button {
+    background: #444;
+    border: none;
+    border-radius: 50%;
+    width: 50px;
+    height: 50px;
+    color: white;
+    font-size: 20px;
+    cursor: pointer;
+  }
+  button#switchCam {
+    width: 40px;
+    height: 40px;
+    background: transparent;
+    color: #eee;
+    font-size: 24px;
+  }
+</style>
 </head>
 <body>
-  <div id="cameraContainer">
-    <video id="video" autoplay playsinline muted></video>
-    <canvas id="videoCanvas"></canvas>
-  </div>
+<div id="cameraContainer">
+  <video id="video" autoplay playsinline muted></video>
+  <canvas id="videoCanvas"></canvas>
+</div>
 
-  <script>
-    const video = document.getElementById("video");
-    const canvas = document.getElementById("videoCanvas");
-    const ctx = canvas.getContext("2d");
+<div id="controls">
+  <button id="capturePhoto" title="Capturar Foto">📸</button>
+  <button id="recordVideo" title="Grabar Video">●</button>
+  <button id="switchCam" title="Cambiar cámara">🔄</button>
+</div>
 
-    let stream;
+<script>
+  const video = document.getElementById("video");
+  const canvas = document.getElementById("videoCanvas");
+  const ctx = canvas.getContext("2d");
 
-    async function startCamera() {
-      try {
-        stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
-        video.srcObject = stream;
-        await video.play();
+  let stream;
+  let currentFacingMode = "user"; // 'user' = frontal, 'environment' = trasera
 
-        // Ajustar tamaño del canvas al video
-        canvas.width = video.videoWidth;
-        canvas.height = video.videoHeight;
-
-        drawFrame();
-      } catch (e) {
-        alert("No se pudo acceder a la cámara.");
-        console.error(e);
-      }
+  async function startCamera() {
+    if(stream) {
+      // detener cámara actual
+      stream.getTracks().forEach(track => track.stop());
     }
+    try {
+      stream = await navigator.mediaDevices.getUserMedia({
+        video: { facingMode: currentFacingMode },
+        audio: false
+      });
+      video.srcObject = stream;
+      await video.play();
 
-    function drawFrame() {
-      if(video.readyState === video.HAVE_ENOUGH_DATA){
-        ctx.clearRect(0, 0, canvas.width, canvas.height);
-        ctx.save();
-        // espejo horizontal para cámara frontal (opcional)
+      canvas.width = video.videoWidth;
+      canvas.height = video.videoHeight;
+
+      drawFrame();
+    } catch (e) {
+      alert("No se pudo acceder a la cámara.");
+      console.error(e);
+    }
+  }
+
+  function drawFrame() {
+    if (video.readyState === video.HAVE_ENOUGH_DATA) {
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+      ctx.save();
+      // aplicar espejo solo si cámara frontal
+      if(currentFacingMode === "user"){
         ctx.translate(canvas.width, 0);
         ctx.scale(-1, 1);
-        // Aplicar filtro simple ejemplo invertido (cámbialo por el que desees)
-        ctx.filter = "invert(1)";
-        ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-        ctx.restore();
       }
-      requestAnimationFrame(drawFrame);
+      // filtro ejemplo invertido (cámbialo por el tuyo)
+      ctx.filter = "invert(1)";
+      ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+      ctx.restore();
     }
+    requestAnimationFrame(drawFrame);
+  }
 
+  // Cambiar cámara al presionar el botón
+  document.getElementById("switchCam").addEventListener("click", () => {
+    currentFacingMode = currentFacingMode === "user" ? "environment" : "user";
     startCamera();
-  </script>
+  });
+
+  // Botones de captura y grabación (puedes integrar tu lógica aquí)
+  document.getElementById("capturePhoto").addEventListener("click", () => {
+    // Ejemplo: guardar imagen actual
+    const imgData = canvas.toDataURL("image/png");
+    console.log("Foto tomada", imgData);
+    alert("Foto tomada (revisa consola)");
+  });
+  document.getElementById("recordVideo").addEventListener("click", () => {
+    alert("Funcionalidad grabar video no implementada en este ejemplo.");
+  });
+
+  startCamera();
+</script>
 </body>
 </html>
