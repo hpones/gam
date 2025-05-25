@@ -1,13 +1,15 @@
 const video = document.getElementById('video');
 const canvas = document.getElementById('canvas');
 const ctx = canvas.getContext('2d');
-const filterSelect = document.getElementById('filterSelect');
+
+const filterToggle = document.getElementById('filterToggle');
+const filterList = document.getElementById('filterList');
+let currentFilter = 'none';
 
 const takePhotoBtn = document.getElementById('takePhoto');
 const startRecordBtn = document.getElementById('startRecord');
 const openGalleryBtn = document.getElementById('openGallery');
 
-let currentFilter = 'none';
 let mediaRecorder;
 let recordedChunks = [];
 let galleryWindow = null;
@@ -100,8 +102,16 @@ function drawFrame() {
   requestAnimationFrame(drawFrame);
 }
 
-filterSelect.addEventListener('change', (e) => {
-  currentFilter = e.target.value;
+filterToggle.addEventListener('click', () => {
+  filterList.classList.toggle('hidden');
+});
+
+// Cambiar filtro al pasar por encima (sin click extra)
+filterList.querySelectorAll('li').forEach(li => {
+  li.addEventListener('click', () => {
+    currentFilter = li.dataset.filter;
+    filterList.classList.add('hidden');
+  });
 });
 
 takePhotoBtn.addEventListener('click', () => {
@@ -122,8 +132,7 @@ startRecordBtn.addEventListener('click', () => {
 
   mediaRecorder.onstop = () => {
     const blob = new Blob(recordedChunks, { type: 'video/webm' });
-    const url = URL.createObjectURL(blob);
-    sendToGallery({type: 'video', url, blob});
+    sendToGallery({type: 'video', blob});
     resetRecordButtons();
   };
 
@@ -140,79 +149,4 @@ function pauseRecording() {
     isPaused = false;
   } else {
     mediaRecorder.pause();
-    isPaused = true;
-  }
-  updateRecordButtons();
-}
-
-function stopRecording() {
-  if (!mediaRecorder) return;
-  mediaRecorder.stop();
-  isRecording = false;
-  isPaused = false;
-  updateRecordButtons();
-}
-
-function updateRecordButtons() {
-  if (isRecording) {
-    startRecordBtn.style.display = 'none';
-
-    // Crear botones de pausar y detener si no existen
-    if (!document.getElementById('pauseRecordBtn')) {
-      const pauseBtn = document.createElement('button');
-      pauseBtn.id = 'pauseRecordBtn';
-      pauseBtn.className = 'btn-circle small-btn';
-      pauseBtn.title = 'Pausar / Reanudar';
-      pauseBtn.innerHTML = '⏸️';
-      pauseBtn.onclick = pauseRecording;
-      startRecordBtn.parentNode.appendChild(pauseBtn);
-    }
-    if (!document.getElementById('stopRecordBtn')) {
-      const stopBtn = document.createElement('button');
-      stopBtn.id = 'stopRecordBtn';
-      stopBtn.className = 'btn-circle small-btn';
-      stopBtn.title = 'Detener grabación';
-      stopBtn.innerHTML = '⏹️';
-      stopBtn.onclick = stopRecording;
-      startRecordBtn.parentNode.appendChild(stopBtn);
-    }
-    // Actualizar icono pausa o play
-    const pauseBtn = document.getElementById('pauseRecordBtn');
-    pauseBtn.innerHTML = isPaused ? '▶️' : '⏸️';
-
-  } else {
-    startRecordBtn.style.display = 'inline-block';
-    const pauseBtn = document.getElementById('pauseRecordBtn');
-    const stopBtn = document.getElementById('stopRecordBtn');
-    if (pauseBtn) pauseBtn.remove();
-    if (stopBtn) stopBtn.remove();
-  }
-}
-
-function resetRecordButtons() {
-  isRecording = false;
-  isPaused = false;
-  updateRecordButtons();
-}
-
-// Comunicación con galería en ventana separada
-function sendToGallery(data) {
-  if (!galleryWindow || galleryWindow.closed) {
-    galleryWindow = window.open('gallery.html', 'Galería Experimental Camera', 'width=600,height=400');
-    galleryWindow.onload = () => {
-      galleryWindow.postMessage({ type: 'addItem', data }, '*');
-    };
-  } else {
-    galleryWindow.postMessage({ type: 'addItem', data }, '*');
-  }
-}
-
-openGalleryBtn.addEventListener('click', () => {
-  if (!galleryWindow || galleryWindow.closed) {
-    galleryWindow = window.open('gallery.html', 'Galería Experimental Camera', 'width=600,height=400');
-  } else {
-    galleryWindow.focus();
-  }
-});
-
-window.addEventListener('load', setupCamera);
+    isPaused
