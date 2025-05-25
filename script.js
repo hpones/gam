@@ -24,7 +24,13 @@ async function startCamera() {
       video: { facingMode: usingFrontCamera ? "user" : "environment" },
       audio: true
     });
-    video.srcObject = stream;
+
+    const filteredStream = new MediaStream();
+    stream.getVideoTracks().forEach(track => filteredStream.addTrack(track));
+    stream.getAudioTracks().forEach(track => filteredStream.addTrack(track));
+
+    video.srcObject = filteredStream;
+    video.style.filter = getCssFilter(currentFilter);
   } catch (err) {
     alert("Error al acceder a la cámara: " + err);
   }
@@ -34,17 +40,17 @@ startCamera();
 
 video.addEventListener("dblclick", async () => {
   usingFrontCamera = !usingFrontCamera;
-  if (stream) {
-    stream.getTracks().forEach(track => track.stop());
-  }
+  if (stream) stream.getTracks().forEach(track => track.stop());
   await startCamera();
 });
 
 fullscreenBtn.onclick = () => {
   if (!document.fullscreenElement) {
     document.documentElement.requestFullscreen();
+    controls.style.opacity = 0.1;
   } else {
     document.exitFullscreen();
+    controls.style.opacity = 1;
   }
 };
 
@@ -83,7 +89,8 @@ photoBtn.onclick = () => {
 videoBtn.onclick = () => {
   if (mediaRecorder && mediaRecorder.state === "recording") return;
 
-  mediaRecorder = new MediaRecorder(stream);
+  const filteredStream = video.captureStream();
+  mediaRecorder = new MediaRecorder(filteredStream);
   chunks = [];
 
   mediaRecorder.ondataavailable = e => chunks.push(e.data);
@@ -97,8 +104,6 @@ videoBtn.onclick = () => {
   };
 
   mediaRecorder.start();
-
-  // ✅ Cambio solicitado:
   controls.style.display = "none";
   videoControls.style.display = "flex";
 };
@@ -117,8 +122,6 @@ pauseBtn.onclick = () => {
 stopBtn.onclick = () => {
   if (!mediaRecorder) return;
   mediaRecorder.stop();
-
-  // ✅ Mostrar nuevamente los botones originales
   controls.style.display = "flex";
   videoControls.style.display = "none";
 };
