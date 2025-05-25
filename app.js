@@ -149,4 +149,75 @@ function pauseRecording() {
     isPaused = false;
   } else {
     mediaRecorder.pause();
-    isPaused
+    isPaused = true;
+  }
+  updateRecordButtons();
+}
+
+function stopRecording() {
+  if (!mediaRecorder) return;
+  mediaRecorder.stop();
+  isRecording = false;
+  isPaused = false;
+  updateRecordButtons();
+}
+
+function updateRecordButtons() {
+  if (isRecording) {
+    startRecordBtn.style.backgroundColor = '#b30000';
+    startRecordBtn.textContent = isPaused ? '▶️' : '⏸️';
+
+    if (!document.getElementById('pauseBtn')) {
+      const pauseBtn = document.createElement('button');
+      pauseBtn.id = 'pauseBtn';
+      pauseBtn.textContent = '⏸️';
+      pauseBtn.className = 'btn-circle small-btn';
+      pauseBtn.title = 'Pausar / Reanudar';
+      pauseBtn.onclick = pauseRecording;
+      startRecordBtn.insertAdjacentElement('afterend', pauseBtn);
+    }
+    if (!document.getElementById('stopBtn')) {
+      const stopBtn = document.createElement('button');
+      stopBtn.id = 'stopBtn';
+      stopBtn.textContent = '⏹️';
+      stopBtn.className = 'btn-circle small-btn';
+      stopBtn.title = 'Detener Grabación';
+      stopBtn.onclick = stopRecording;
+      document.getElementById('pauseBtn').insertAdjacentElement('afterend', stopBtn);
+    }
+  } else {
+    startRecordBtn.style.backgroundColor = 'red';
+    startRecordBtn.textContent = '';
+    removeRecordExtraButtons();
+  }
+}
+
+function removeRecordExtraButtons() {
+  const pauseBtn = document.getElementById('pauseBtn');
+  const stopBtn = document.getElementById('stopBtn');
+  if (pauseBtn) pauseBtn.remove();
+  if (stopBtn) stopBtn.remove();
+}
+
+function resetRecordButtons() {
+  isRecording = false;
+  isPaused = false;
+  updateRecordButtons();
+}
+
+function sendToGallery(item) {
+  if (galleryWindow && !galleryWindow.closed) {
+    galleryWindow.postMessage({type: 'addItem', data: item}, '*');
+  }
+}
+
+openGalleryBtn.addEventListener('click', () => {
+  if (!galleryWindow || galleryWindow.closed) {
+    galleryWindow = window.open('gallery.html', 'gallery', 'width=600,height=600');
+  } else {
+    galleryWindow.focus();
+  }
+});
+
+// Inicialización
+setupCamera();
