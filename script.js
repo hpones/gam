@@ -32,7 +32,6 @@ async function startCamera() {
 
 startCamera();
 
-// Doble click cambia cámara
 video.addEventListener("dblclick", async () => {
   usingFrontCamera = !usingFrontCamera;
   if (stream) {
@@ -49,7 +48,6 @@ fullscreenBtn.onclick = () => {
   }
 };
 
-// Filtros
 filterToggle.onclick = () => {
   filterMenu.classList.toggle("hidden");
 };
@@ -71,7 +69,6 @@ function getCssFilter(name) {
   }
 }
 
-// Captura de foto
 photoBtn.onclick = () => {
   const context = canvas.getContext("2d");
   canvas.width = video.videoWidth;
@@ -83,7 +80,6 @@ photoBtn.onclick = () => {
   gallery.appendChild(img);
 };
 
-// Grabación de video
 videoBtn.onclick = () => {
   if (mediaRecorder && mediaRecorder.state === "recording") return;
 
@@ -102,6 +98,7 @@ videoBtn.onclick = () => {
 
   mediaRecorder.start();
 
+  // ✅ Cambio solicitado:
   controls.style.display = "none";
   videoControls.style.display = "flex";
 };
@@ -121,6 +118,7 @@ stopBtn.onclick = () => {
   if (!mediaRecorder) return;
   mediaRecorder.stop();
 
+  // ✅ Mostrar nuevamente los botones originales
   controls.style.display = "flex";
   videoControls.style.display = "none";
 };
