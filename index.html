@@ -26,108 +26,6 @@
       background: black;
       display: block;
     }
-    .bottom-controls {
-      position: fixed;
-      bottom: 10px;
-      left: 50%;
-      transform: translateX(-50%);
-      display: flex;
-      gap: 20px;
-      z-index: 10;
-    }
-    button.btn-circle {
-      border: none;
-      border-radius: 50%;
-      width: 60px;
-      height: 60px;
-      font-size: 24px;
-      cursor: pointer;
-      outline: none;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      user-select: none;
-      background: #444;
-      color: white;
-      transition: background-color 0.3s;
-    }
-    button.btn-circle:hover {
-      background: #666;
-    }
-    button.small-btn {
-      width: 40px;
-      height: 40px;
-      font-size: 18px;
-    }
-    #filterToggle {
-      background: #ffeb3b; /* amarillo */
-      color: #000;
-      font-weight: bold;
-      position: relative;
-    }
-    #filterList {
-      position: absolute;
-      bottom: 70px;
-      left: 50%;
-      transform: translateX(-50%);
-      background: #ffeb3b;
-      color: #000;
-      list-style: none;
-      margin: 0; padding: 5px 10px;
-      border-radius: 8px;
-      box-shadow: 0 0 10px rgba(0,0,0,0.5);
-      display: none;
-      min-width: 140px;
-      text-align: center;
-      z-index: 20;
-    }
-    #filterList li {
-      padding: 6px 10px;
-      cursor: pointer;
-      border-radius: 4px;
-      user-select: none;
-    }
-    #filterList li:hover {
-      background: #f0d72d;
-    }
-    #gallery {
-      width: 100vw;
-      max-width: 600px;
-      max-height: 150px;
-      overflow-x: auto;
-      white-space: nowrap;
-      background: #111;
-      padding: 10px;
-      box-sizing: border-box;
-    }
-    #gallery img, #gallery video {
-      height: 130px;
-      margin-right: 10px;
-      border-radius: 8px;
-      background: #222;
-      display: inline-block;
-      vertical-align: middle;
-    }
-    #fullscreenBtn {
-      position: fixed;
-      top: 10px;
-      right: 10px;
-      width: 28px;
-      height: 28px;
-      background: rgba(255,255,255,0.15);
-      border-radius: 4px;
-      color: #eee;
-      font-size: 18px;
-      line-height: 28px;
-      text-align: center;
-      cursor: pointer;
-      user-select: none;
-      z-index: 50;
-      transition: background-color 0.3s;
-    }
-    #fullscreenBtn:hover {
-      background: rgba(255,255,255,0.35);
-    }
   </style>
 </head>
 <body>
@@ -136,240 +34,44 @@
     <canvas id="videoCanvas"></canvas>
   </div>
 
-  <div class="bottom-controls">
-    <button id="filterToggle" class="btn-circle">🎨</button>
-    <ul id="filterList">
-      <li data-filter="none">Normal</li>
-      <li data-filter="grayscale">Grayscale</li>
-      <li data-filter="invert">Invert</li>
-      <li data-filter="sepia">Sepia</li>
-      <li data-filter="glitch">Glitch</li>
-    </ul>
-
-    <button id="takePhotoBtn" class="btn-circle" title="Tomar foto" style="background:#fff; color:#000;">●</button>
-    <button id="startRecordBtn" class="btn-circle" title="Iniciar grabación" style="background:#f44336;">●</button>
-  </div>
-
-  <div id="gallery"></div>
-
-  <button id="fullscreenBtn" title="Pantalla completa">⛶</button>
-
-  <canvas id="captureCanvas" style="display:none;"></canvas>
-
   <script>
     const video = document.getElementById("video");
-    const videoCanvas = document.getElementById("videoCanvas");
-    const videoCtx = videoCanvas.getContext("2d");
+    const canvas = document.getElementById("videoCanvas");
+    const ctx = canvas.getContext("2d");
 
-    const captureCanvas = document.getElementById("captureCanvas");
-    const captureCtx = captureCanvas.getContext("2d");
-
-    const filterToggle = document.getElementById("filterToggle");
-    const filterList = document.getElementById("filterList");
-
-    const takePhotoBtn = document.getElementById("takePhotoBtn");
-    const startRecordBtn = document.getElementById("startRecordBtn");
-    const fullscreenBtn = document.getElementById("fullscreenBtn");
-    const gallery = document.getElementById("gallery");
-
-    let mediaStream = null;
-    let mediaRecorder = null;
-    let recordedChunks = [];
-    let isRecording = false;
-    let facingMode = "user"; // front camera
-
-    let currentFilter = "none";
-
-    // Dibuja video filtrado en canvas en espejo
-    function drawVideoToCanvas() {
-      if (!video.paused && !video.ended) {
-        videoCtx.save();
-        videoCtx.clearRect(0, 0, videoCanvas.width, videoCanvas.height);
-        videoCtx.filter = getCanvasFilter(currentFilter);
-        videoCtx.translate(videoCanvas.width, 0);
-        videoCtx.scale(-1, 1);
-        videoCtx.drawImage(video, 0, 0, videoCanvas.width, videoCanvas.height);
-        videoCtx.restore();
-      }
-      requestAnimationFrame(drawVideoToCanvas);
-    }
-
-    function getCanvasFilter(filter) {
-      switch (filter) {
-        case "grayscale": return "grayscale(1)";
-        case "invert": return "invert(1)";
-        case "sepia": return "sepia(1)";
-        case "glitch": 
-          // Simple glitch effect using canvas filters and manual pixels could be added here
-          // For simplicity let's invert and sepia layered:
-          return "invert(1) sepia(0.5)";
-        default: return "none";
-      }
-    }
+    let stream;
 
     async function startCamera() {
-      if (mediaStream) {
-        mediaStream.getTracks().forEach(track => track.stop());
-      }
       try {
-        mediaStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode }, audio: true });
-        video.srcObject = mediaStream;
-
+        stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
+        video.srcObject = stream;
         await video.play();
 
-        video.addEventListener('loadedmetadata', () => {
-          videoCanvas.width = video.videoWidth;
-          videoCanvas.height = video.videoHeight;
-          captureCanvas.width = video.videoWidth;
-          captureCanvas.height = video.videoHeight;
-          drawVideoToCanvas();
-        }, { once: true });
+        // Ajustar tamaño del canvas al video
+        canvas.width = video.videoWidth;
+        canvas.height = video.videoHeight;
 
-      } catch (err) {
+        drawFrame();
+      } catch (e) {
         alert("No se pudo acceder a la cámara.");
-        console.error(err);
+        console.error(e);
       }
     }
 
-    takePhotoBtn.onclick = () => {
-      captureCanvas.width = videoCanvas.width;
-      captureCanvas.height = videoCanvas.height;
-      captureCtx.filter = getCanvasFilter(currentFilter);
-      captureCtx.translate(captureCanvas.width, 0);
-      captureCtx.scale(-1, 1);
-      captureCtx.drawImage(video, 0, 0, captureCanvas.width, captureCanvas.height);
-      captureCtx.setTransform(1, 0, 0, 1, 0, 0);
-
-      captureCanvas.toBlob(blob => {
-        const imgURL = URL.createObjectURL(blob);
-        addToGallery(imgURL, "image");
-      }, "image/jpeg");
-    };
-
-    function addToGallery(url, type) {
-      let el;
-      if(type === "image") {
-        el = document.createElement("img");
-        el.src = url;
-        el.className = "thumb";
-        el.alt = "Foto capturada";
-      } else if(type === "video") {
-        el = document.createElement("video");
-        el.src = url;
-        el.className = "thumb";
-        el.controls = true;
-        el.autoplay = false;
+    function drawFrame() {
+      if(video.readyState === video.HAVE_ENOUGH_DATA){
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        ctx.save();
+        // espejo horizontal para cámara frontal (opcional)
+        ctx.translate(canvas.width, 0);
+        ctx.scale(-1, 1);
+        // Aplicar filtro simple ejemplo invertido (cámbialo por el que desees)
+        ctx.filter = "invert(1)";
+        ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+        ctx.restore();
       }
-      gallery.appendChild(el);
+      requestAnimationFrame(drawFrame);
     }
-
-    startRecordBtn.onclick = () => {
-      if (!isRecording) {
-        startRecording();
-      } else {
-        stopRecording();
-      }
-    };
-
-    let pauseBtn = null;
-    let stopBtn = null;
-    let canvasStream = null;
-
-    function startRecording() {
-      recordedChunks = [];
-
-      canvasStream = videoCanvas.captureStream(30);
-      const audioTracks = mediaStream.getAudioTracks();
-      audioTracks.forEach(track => canvasStream.addTrack(track));
-
-      mediaRecorder = new MediaRecorder(canvasStream, { mimeType: "video/webm" });
-      mediaRecorder.ondataavailable = e => {
-        if (e.data.size > 0) recordedChunks.push(e.data);
-      };
-      mediaRecorder.onstop = () => {
-        const blob = new Blob(recordedChunks, { type: "video/webm" });
-        const videoURL = URL.createObjectURL(blob);
-        addToGallery(videoURL, "video");
-      };
-      mediaRecorder.start();
-      isRecording = true;
-      toggleRecordButtons(true);
-    }
-
-    function stopRecording() {
-      if(mediaRecorder && isRecording) {
-        mediaRecorder.stop();
-      }
-      isRecording = false;
-      toggleRecordButtons(false);
-    }
-
-    function toggleRecordButtons(recording) {
-      startRecordBtn.disabled = recording;
-      if (recording) {
-        if(!pauseBtn){
-          pauseBtn = document.createElement("button");
-          pauseBtn.textContent = "⏸";
-          pauseBtn.classList.add("btn-circle", "small-btn");
-          pauseBtn.title = "Pausar/Reanudar grabación";
-          pauseBtn.style.background = "#555";
-          pauseBtn.style.color = "#eee";
-          pauseBtn.style.marginLeft = "10px";
-          pauseBtn.addEventListener("click", () => {
-            if(mediaRecorder.state === "recording") mediaRecorder.pause();
-            else if(mediaRecorder.state === "paused") mediaRecorder.resume();
-          });
-          document.querySelector(".bottom-controls").appendChild(pauseBtn);
-        }
-        if(!stopBtn){
-          stopBtn = document.createElement("button");
-          stopBtn.textContent = "⏹";
-          stopBtn.classList.add("btn-circle", "small-btn");
-          stopBtn.title = "Detener grabación";
-          stopBtn.style.background = "#555";
-          stopBtn.style.color = "#eee";
-          stopBtn.style.marginLeft = "10px";
-          stopBtn.addEventListener("click", () => {
-            stopRecording();
-            if(pauseBtn) pauseBtn.remove();
-            if(stopBtn) stopBtn.remove();
-            pauseBtn = null;
-            stopBtn = null;
-          });
-          document.querySelector(".bottom-controls").appendChild(stopBtn);
-        }
-      } else {
-        if(pauseBtn) pauseBtn.remove();
-        if(stopBtn) stopBtn.remove();
-        pauseBtn = null;
-        stopBtn = null;
-        startRecordBtn.disabled = false;
-      }
-    }
-
-    filterToggle.addEventListener("click", () => {
-      filterList.style.display = filterList.style.display === "block" ? "none" : "block";
-    });
-
-    filterList.addEventListener("click", e => {
-      if (e.target.tagName === "LI") {
-        currentFilter = e.target.dataset.filter;
-        filterList.style.display = "none";
-      }
-    });
-
-    fullscreenBtn.addEventListener("click", () => {
-      if (!document.fullscreenElement) {
-        document.documentElement.requestFullscreen();
-      } else {
-        document.exitFullscreen();
-      }
-    });
-
-    video.addEventListener("dblclick", () => {
-      facingMode = facingMode === "user" ? "environment" : "user";
-      startCamera();
-    });
 
     startCamera();
   </script>
