@@ -9,12 +9,7 @@
 <body>
   <h1>Experimental Camera</h1>
 
-  <div class="camera-container">
-    <video id="video" autoplay playsinline></video>
-    <canvas id="canvas"></canvas>
-  </div>
-
-  <div class="controls">
+  <div class="filter-section">
     <label for="filterSelect">Elige un filtro:</label>
     <select id="filterSelect">
       <option value="none">Sin filtro</option>
@@ -25,15 +20,19 @@
     </select>
   </div>
 
-  <div class="photo-video-controls">
-    <button id="takePhoto">📸 Tomar Foto</button>
-    <button id="startRecord">⏺ Grabar Video</button>
-    <button id="stopRecord" disabled>⏹ Detener Grabación</button>
+  <div class="capture-section">
+    <button id="takePhoto" title="Tomar Foto" class="btn-circle white-circle" aria-label="Tomar Foto"></button>
+    <button id="startRecord" title="Grabar Video" class="btn-circle red-circle" aria-label="Grabar Video"></button>
   </div>
 
-  <h2>Galería</h2>
-  <div id="gallery" class="gallery"></div>
+  <button id="openGallery" class="open-gallery-btn">Abrir Galería</button>
+
+  <div class="camera-container">
+    <video id="video" autoplay playsinline></video>
+    <canvas id="canvas"></canvas>
+  </div>
 
   <script src="app.js"></script>
 </body>
 </html>
+
