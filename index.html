@@ -1,145 +1,153 @@
 <!DOCTYPE html>
 <html lang="es">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Experimental Camera</title>
-  <style>
-    body {
-      margin: 0;
-      font-family: sans-serif;
-      background: #000;
-      color: #fff;
-      overflow: hidden;
-      display: flex;
-      flex-direction: column;
-      height: 100vh;
-    }
-    main {
-      flex: 1;
-      display: flex;
-      flex-direction: column;
-      position: relative;
-    }
-    .camera-container {
-      flex: 1;
-      position: relative;
-      background: black;
-      overflow: hidden;
-      display: flex;
-      justify-content: center;
-      align-items: center;
-      flex-direction: column;
-    }
-    video, canvas#videoCanvas {
-      max-width: 100%;
-      max-height: 60vh;
-      object-fit: cover;
-      transform: scaleX(-1);
-      user-select: none;
-      background: black;
-    }
-    canvas#captureCanvas {
-      display: none;
-    }
-    .bottom-controls {
-      display: flex;
-      justify-content: space-around;
-      align-items: center;
-      padding: 10px;
-      background: rgba(0,0,0,0.5);
-      width: 100%;
-    }
-    .btn-circle {
-      width: 60px;
-      height: 60px;
-      border-radius: 50%;
-      border: none;
-      margin: 0 10px;
-      cursor: pointer;
-      display: flex;
-      justify-content: center;
-      align-items: center;
-      font-size: 0;
-      user-select: none;
-    }
-    .btn-circle.white { background: white; }
-    .btn-circle.red { background: red; }
-    .btn-circle.yellow { background: yellow; }
-    .btn-circle.small-btn {
-      width: 40px;
-      height: 40px;
-      font-size: 18px;
-      background: white;
-      color: black;
-      margin: 0 5px;
-      line-height: 1;
-    }
-    #filterList {
-      position: absolute;
-      bottom: 70px;
-      left: 50%;
-      transform: translateX(-50%);
-      background: rgba(255, 255, 255, 0.8);
-      color: black;
-      list-style: none;
-      padding: 5px 10px;
-      border-radius: 10px;
-      z-index: 10;
-      max-width: 90vw;
-      user-select: none;
-    }
-    #filterList.hidden {
-      display: none;
-    }
-    #filterList li {
-      padding: 5px;
-      cursor: pointer;
-      user-select: none;
-    }
-    #gallery {
-      display: flex;
-      flex-wrap: wrap;
-      justify-content: start;
-      align-items: flex-start;
-      padding: 5px;
-      background: #111;
-      overflow-y: auto;
-      max-height: 150px;
-    }
-    .thumb {
-      width: 120px;
-      height: auto;
-      margin: 5px;
-      object-fit: cover;
-      border-radius: 8px;
-      user-select: none;
-    }
-    #fullscreenBtn {
-      position: absolute;
-      top: 10px;
-      right: 10px;
-      background: rgba(255,255,0,0.3);
-      border: none;
-      border-radius: 50%;
-      width: 30px;
-      height: 30px;
-      cursor: pointer;
-      font-weight: bold;
-      font-size: 20px;
-      color: black;
-      z-index: 20;
-      user-select: none;
-      line-height: 0;
-      display: flex;
-      justify-content: center;
-      align-items: center;
-      transition: background 0.3s;
-    }
-    #fullscreenBtn:hover {
-      background: rgba(255,255,0,0.7);
-    }
-  </style>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Experimental Camera</title>
+<style>
+  body {
+    margin: 0;
+    font-family: sans-serif;
+    background: #000;
+    color: #fff;
+    height: 100vh;
+    display: flex;
+    flex-direction: column;
+  }
+  main {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    position: relative;
+  }
+  .camera-container {
+    flex: 1;
+    background: black;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    position: relative;
+    overflow: hidden;
+  }
+  video, canvas#videoCanvas {
+    max-width: 100%;
+    max-height: 60vh;
+    object-fit: cover;
+    transform: scaleX(-1);
+    user-select: none;
+    background: black;
+  }
+  canvas#captureCanvas {
+    display: none;
+  }
+  .bottom-controls {
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    width: 100%;
+    background: rgba(0,0,0,0.7);
+    padding: 8px 0;
+    display: flex;
+    justify-content: center;
+    gap: 20px;
+    align-items: center;
+    z-index: 10;
+  }
+  .btn-circle {
+    width: 60px;
+    height: 60px;
+    border-radius: 50%;
+    border: none;
+    cursor: pointer;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    font-size: 0;
+    user-select: none;
+  }
+  .btn-circle.white { background: white; }
+  .btn-circle.red { background: red; }
+  .btn-circle.yellow { background: yellow; }
+  .btn-circle.small-btn {
+    width: 40px;
+    height: 40px;
+    font-size: 18px;
+    background: white;
+    color: black;
+    margin: 0 5px;
+    line-height: 1;
+  }
+  #filterList {
+    position: absolute;
+    bottom: 70px;
+    left: 50%;
+    transform: translateX(-50%);
+    background: rgba(255, 255, 255, 0.9);
+    color: black;
+    list-style: none;
+    padding: 5px 10px;
+    border-radius: 10px;
+    max-width: 90vw;
+    user-select: none;
+    z-index: 20;
+    box-shadow: 0 0 8px rgba(0,0,0,0.5);
+  }
+  #filterList.hidden {
+    display: none;
+  }
+  #filterList li {
+    padding: 5px 10px;
+    cursor: pointer;
+    user-select: none;
+    white-space: nowrap;
+  }
+  #filterList li:hover {
+    background: #ff0;
+  }
+  #gallery {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: start;
+    align-items: flex-start;
+    padding: 5px;
+    background: #111;
+    overflow-y: auto;
+    max-height: 150px;
+    margin-top: 8px;
+  }
+  .thumb {
+    width: 120px;
+    height: auto;
+    margin: 5px;
+    object-fit: cover;
+    border-radius: 8px;
+    user-select: none;
+  }
+  #fullscreenBtn {
+    position: absolute;
+    top: 10px;
+    right: 10px;
+    background: rgba(255,255,0,0.3);
+    border: none;
+    border-radius: 50%;
+    width: 30px;
+    height: 30px;
+    cursor: pointer;
+    font-weight: bold;
+    font-size: 20px;
+    color: black;
+    z-index: 20;
+    user-select: none;
+    line-height: 0;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    transition: background 0.3s;
+  }
+  #fullscreenBtn:hover {
+    background: rgba(255,255,0,0.7);
+  }
+</style>
 </head>
 <body>
   <main>
@@ -149,20 +157,16 @@
       <canvas id="captureCanvas"></canvas>
       <button id="fullscreenBtn" title="Pantalla completa">⬜</button>
       <div class="bottom-controls">
-        <div class="capture-section">
-          <button id="takePhoto" class="btn-circle white" title="Tomar foto"></button>
-          <button id="startRecord" class="btn-circle red" title="Grabar video"></button>
-        </div>
-        <div class="filter-section">
-          <button id="filterToggle" class="btn-circle yellow" title="Seleccionar filtro"></button>
-          <ul id="filterList" class="hidden" aria-label="Lista de filtros">
-            <li data-filter="none">Sin filtro</li>
-            <li data-filter="grayscale">Gris</li>
-            <li data-filter="invert">Invertir</li>
-            <li data-filter="sepia">Sepia</li>
-          </ul>
-        </div>
+        <button id="takePhoto" class="btn-circle white" title="Tomar foto"></button>
+        <button id="startRecord" class="btn-circle red" title="Grabar video"></button>
+        <button id="filterToggle" class="btn-circle yellow" title="Seleccionar filtro"></button>
       </div>
+      <ul id="filterList" class="hidden" aria-label="Lista de filtros">
+        <li data-filter="none">Sin filtro</li>
+        <li data-filter="grayscale">Gris</li>
+        <li data-filter="invert">Invertir</li>
+        <li data-filter="sepia">Sepia</li>
+      </ul>
     </div>
     <section id="gallery" aria-label="Galería de fotos y videos"></section>
   </main>
@@ -186,9 +190,8 @@
     let isRecording = false;
     let pauseBtn = null;
     let stopBtn = null;
-    let facingMode = "user"; // front camera
+    let facingMode = "user";
 
-    // Para grabar el video con filtro, dibujamos en videoCanvas y grabamos canvasStream
     let canvasStream = null;
     const videoCtx = videoCanvas.getContext("2d");
     const captureCtx = captureCanvas.getContext("2d");
@@ -202,7 +205,6 @@
         video.srcObject = mediaStream;
 
         video.addEventListener('loadedmetadata', () => {
-          // Ajustar tamaños del canvas para dibujo
           videoCanvas.width = video.videoWidth;
           videoCanvas.height = video.videoHeight;
           captureCanvas.width = video.videoWidth;
@@ -210,9 +212,7 @@
         });
 
         applyFilter(currentFilter);
-
-        drawVideoToCanvas(); // iniciar el loop de dibujo
-
+        drawVideoToCanvas();
       } catch (err) {
         alert("No se pudo acceder a la cámara.");
         console.error(err);
@@ -221,7 +221,6 @@
 
     function applyFilter(filter) {
       currentFilter = filter;
-      // Aplicar filtro CSS al video (vista en vivo)
       switch (filter) {
         case "grayscale": video.style.filter = "grayscale(1)"; break;
         case "invert": video.style.filter = "invert(1)"; break;
@@ -230,18 +229,15 @@
       }
     }
 
-    // Dibuja el video con filtro en el canvas en loop para grabar
     function drawVideoToCanvas() {
       if (!video.paused && !video.ended) {
         videoCtx.save();
         videoCtx.clearRect(0, 0, videoCanvas.width, videoCanvas.height);
         videoCtx.filter = getCanvasFilter(currentFilter);
 
-        // Flip horizontal para espejo (igual que el video)
         videoCtx.translate(videoCanvas.width, 0);
         videoCtx.scale(-1, 1);
         videoCtx.drawImage(video, 0, 0, videoCanvas.width, videoCanvas.height);
-
         videoCtx.restore();
       }
       requestAnimationFrame(drawVideoToCanvas);
@@ -257,7 +253,6 @@
     }
 
     takePhotoBtn.addEventListener("click", () => {
-      // Dibuja la imagen final con filtro en captureCanvas y la guarda
       captureCanvas.width = videoCanvas.width;
       captureCanvas.height = videoCanvas.height;
 
@@ -279,14 +274,11 @@
     startRecordBtn.addEventListener("click", () => {
       if (!isRecording) {
         recordedChunks = [];
-        // Obtener stream del canvas con el video y filtro aplicado
         canvasStream = videoCanvas.captureStream(30);
-        // Añadir audio de la cámara al stream de canvas para grabar audio también
         if(mediaStream.getAudioTracks().length > 0){
           const audioTrack = mediaStream.getAudioTracks()[0];
           canvasStream.addTrack(audioTrack);
         }
-
         mediaRecorder = new MediaRecorder(canvasStream);
         mediaRecorder.ondataavailable = e => { if (e.data.size > 0) recordedChunks.push(e.data); };
         mediaRecorder.onstop = () => {
@@ -305,37 +297,44 @@
     });
 
     function toggleRecordButtons() {
-      startRecordBtn.style.display = "none";
-
-      pauseBtn = document.createElement("button");
-      pauseBtn.className = "btn-circle small-btn";
-      pauseBtn.innerText = "⏸️";
-      pauseBtn.title = "Pausar/Reanudar";
-      pauseBtn.onclick = () => {
-        if (mediaRecorder.state === "recording") {
-          mediaRecorder.pause();
-          pauseBtn.innerText = "▶️";
-        } else {
-          mediaRecorder.resume();
-          pauseBtn.innerText = "⏸️";
+      startRecordBtn.disabled = isRecording;
+      if (isRecording) {
+        // Crear y mostrar botones pause y stop
+        if(!pauseBtn){
+          pauseBtn = document.createElement("button");
+          pauseBtn.textContent = "⏸";
+          pauseBtn.classList.add("btn-circle", "small-btn");
+          pauseBtn.title = "Pausar/Reanudar grabación";
+          pauseBtn.addEventListener("click", () => {
+            if(mediaRecorder.state === "recording") mediaRecorder.pause();
+            else if(mediaRecorder.state === "paused") mediaRecorder.resume();
+          });
+          document.querySelector(".bottom-controls").appendChild(pauseBtn);
         }
-      };
-
-      stopBtn = document.createElement("button");
-      stopBtn.className = "btn-circle small-btn";
-      stopBtn.innerText = "⏹️";
-      stopBtn.title = "Detener grabación";
-      stopBtn.onclick = () => {
-        mediaRecorder.stop();
-        isRecording = false;
-        pauseBtn.remove();
-        stopBtn.remove();
-        startRecordBtn.style.display = "inline-block";
-      };
-
-      const captureSection = document.querySelector(".capture-section");
-      captureSection.appendChild(pauseBtn);
-      captureSection.appendChild(stopBtn);
+        if(!stopBtn){
+          stopBtn = document.createElement("button");
+          stopBtn.textContent = "⏹";
+          stopBtn.classList.add("btn-circle", "small-btn");
+          stopBtn.title = "Detener grabación";
+          stopBtn.addEventListener("click", () => {
+            mediaRecorder.stop();
+            isRecording = false;
+            toggleRecordButtons();
+            if(pauseBtn) pauseBtn.remove();
+            if(stopBtn) stopBtn.remove();
+            pauseBtn = null;
+            stopBtn = null;
+          });
+          document.querySelector(".bottom-controls").appendChild(stopBtn);
+        }
+      } else {
+        // Remover botones pause y stop
+        if(pauseBtn) pauseBtn.remove();
+        if(stopBtn) stopBtn.remove();
+        pauseBtn = null;
+        stopBtn = null;
+        startRecordBtn.disabled = false;
+      }
     }
 
     filterToggle.addEventListener("click", () => {
@@ -357,7 +356,12 @@
       }
     });
 
-    // Iniciar cámara al cargar
+    // Cambiar cámara con doble click en video
+    video.addEventListener("dblclick", () => {
+      facingMode = facingMode === "user" ? "environment" : "user";
+      startCamera();
+    });
+
     startCamera();
   </script>
 </body>
