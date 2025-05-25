@@ -16,16 +16,63 @@ let galleryWindow = null;
 let isRecording = false;
 let isPaused = false;
 
+// Para alternar cámara
+let useFrontCamera = true;
+
+// Detectar swipe para cambiar cámara
+let touchStartX = 0;
+
+document.body.addEventListener('touchstart', e => {
+  if(e.touches.length === 1) {
+    touchStartX = e.touches[0].clientX;
+  }
+});
+
+document.body.addEventListener('touchend', e => {
+  if(e.changedTouches.length === 1) {
+    let touchEndX = e.changedTouches[0].clientX;
+    if(touchEndX - touchStartX > 50) { // swipe derecha > 50px
+      useFrontCamera = !useFrontCamera;
+      setupCamera();
+      updateMirrorClass();
+    }
+  }
+});
+
+function updateMirrorClass() {
+  if(useFrontCamera) {
+    video.classList.add('video-mirrored');
+  } else {
+    video.classList.remove('video-mirrored');
+  }
+}
+
 async function setupCamera() {
+  if(mediaRecorder && mediaRecorder.state !== "inactive") {
+    mediaRecorder.stop();
+  }
+
+  if(video.srcObject){
+    video.srcObject.getTracks().forEach(t => t.stop());
+  }
+
+  const constraints = {
+    audio: false,
+    video: {
+      facingMode: useFrontCamera ? "user" : "environment"
+    }
+  };
+
   try {
-    const stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
+    const stream = await navigator.mediaDevices.getUserMedia(constraints);
     video.srcObject = stream;
 
     video.addEventListener('loadedmetadata', () => {
       canvas.width = video.videoWidth;
       canvas.height = video.videoHeight;
       drawFrame();
-    });
+      updateMirrorClass();
+    }, { once: true });
   } catch (e) {
     alert('Error al acceder a la cámara: ' + e.message);
   }
@@ -102,11 +149,12 @@ function drawFrame() {
   requestAnimationFrame(drawFrame);
 }
 
+// FILTROS
+
 filterToggle.addEventListener('click', () => {
   filterList.classList.toggle('hidden');
 });
 
-// Cambiar filtro al pasar por encima (sin click extra)
 filterList.querySelectorAll('li').forEach(li => {
   li.addEventListener('click', () => {
     currentFilter = li.dataset.filter;
@@ -114,16 +162,21 @@ filterList.querySelectorAll('li').forEach(li => {
   });
 });
 
+// FOTOS
+
 takePhotoBtn.addEventListener('click', () => {
   const dataURL = canvas.toDataURL('image/png');
   sendToGallery({type: 'photo', dataURL});
 });
+
+// GRABAR VIDEO
 
 startRecordBtn.addEventListener('click', () => {
   if (isRecording) return;
 
   recordedChunks = [];
   const stream = canvas.captureStream(30);
+
   mediaRecorder = new MediaRecorder(stream, { mimeType: 'video/webm' });
 
   mediaRecorder.ondataavailable = e => {
@@ -164,8 +217,7 @@ function stopRecording() {
 
 function updateRecordButtons() {
   if (isRecording) {
-    startRecordBtn.style.backgroundColor = '#b30000';
-    startRecordBtn.textContent = isPaused ? '▶️' : '⏸️';
+    startRecordBtn.style.display = 'none';
 
     if (!document.getElementById('pauseBtn')) {
       const pauseBtn = document.createElement('button');
@@ -174,8 +226,9 @@ function updateRecordButtons() {
       pauseBtn.className = 'btn-circle small-btn';
       pauseBtn.title = 'Pausar / Reanudar';
       pauseBtn.onclick = pauseRecording;
-      startRecordBtn.insertAdjacentElement('afterend', pauseBtn);
+      startRecordBtn.parentNode.insertBefore(pauseBtn, startRecordBtn.nextSibling);
     }
+
     if (!document.getElementById('stopBtn')) {
       const stopBtn = document.createElement('button');
       stopBtn.id = 'stopBtn';
@@ -183,11 +236,11 @@ function updateRecordButtons() {
       stopBtn.className = 'btn-circle small-btn';
       stopBtn.title = 'Detener Grabación';
       stopBtn.onclick = stopRecording;
-      document.getElementById('pauseBtn').insertAdjacentElement('afterend', stopBtn);
+      const pauseBtn = document.getElementById('pauseBtn');
+      pauseBtn.parentNode.insertBefore(stopBtn, pauseBtn.nextSibling);
     }
   } else {
-    startRecordBtn.style.backgroundColor = 'red';
-    startRecordBtn.textContent = '';
+    startRecordBtn.style.display = 'inline-flex';
     removeRecordExtraButtons();
   }
 }
@@ -205,8 +258,11 @@ function resetRecordButtons() {
   updateRecordButtons();
 }
 
+// GALERÍA
+
 function sendToGallery(item) {
   if (galleryWindow && !galleryWindow.closed) {
+    // Para fotos mandamos dataURL, para videos mandamos blob y creamos URL en la galería
     galleryWindow.postMessage({type: 'addItem', data: item}, '*');
   }
 }
@@ -219,5 +275,6 @@ openGalleryBtn.addEventListener('click', () => {
   }
 });
 
-// Inicialización
+// INICIALIZA TODO
+
 setupCamera();
