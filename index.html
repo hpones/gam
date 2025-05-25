@@ -1,258 +1,191 @@
 <!DOCTYPE html>
 <html lang="es">
 <head>
-<meta charset="UTF-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>Experimental Camera</title>
-<style>
-  body {
-    margin: 0;
-    font-family: sans-serif;
-    background: #000;
-    color: #fff;
-    height: 100vh;
-    display: flex;
-    flex-direction: column;
-  }
-  main {
-    flex: 1;
-    display: flex;
-    flex-direction: column;
-    position: relative;
-    overflow: hidden;
-  }
-  .camera-container {
-    flex: 1;
-    background: black;
-    display: flex;
-    justify-content: center;
-    align-items: center;
-    position: relative;
-    overflow: hidden;
-  }
-  /* Ocultar video cuando usamos canvas */
-  video {
-    display: none;
-  }
-  canvas#videoCanvas {
-    max-width: 100%;
-    max-height: 60vh;
-    object-fit: cover;
-    transform: scaleX(-1);
-    user-select: none;
-    background: black;
-  }
-  canvas#captureCanvas {
-    display: none;
-  }
-  .bottom-controls {
-    position: fixed;
-    bottom: 0;
-    left: 0;
-    width: 100%;
-    background: rgba(0,0,0,0.7);
-    padding: 8px 0;
-    display: flex;
-    justify-content: center;
-    gap: 20px;
-    align-items: center;
-    z-index: 10;
-  }
-  .btn-circle {
-    width: 60px;
-    height: 60px;
-    border-radius: 50%;
-    border: none;
-    cursor: pointer;
-    display: flex;
-    justify-content: center;
-    align-items: center;
-    font-size: 0;
-    user-select: none;
-  }
-  .btn-circle.white { background: white; }
-  .btn-circle.red { background: red; }
-  .btn-circle.yellow { background: yellow; }
-  .btn-circle.small-btn {
-    width: 40px;
-    height: 40px;
-    font-size: 18px;
-    background: white;
-    color: black;
-    margin: 0 5px;
-    line-height: 1;
-  }
-  #filterList {
-    position: absolute;
-    bottom: 70px;
-    left: 50%;
-    transform: translateX(-50%);
-    background: rgba(255, 255, 255, 0.9);
-    color: black;
-    list-style: none;
-    padding: 5px 10px;
-    border-radius: 10px;
-    max-width: 90vw;
-    user-select: none;
-    z-index: 20;
-    box-shadow: 0 0 8px rgba(0,0,0,0.5);
-  }
-  #filterList.hidden {
-    display: none;
-  }
-  #filterList li {
-    padding: 5px 10px;
-    cursor: pointer;
-    user-select: none;
-    white-space: nowrap;
-  }
-  #filterList li:hover {
-    background: #ff0;
-  }
-  #gallery {
-    display: flex;
-    flex-wrap: wrap;
-    justify-content: start;
-    align-items: flex-start;
-    padding: 5px;
-    background: #111;
-    overflow-y: auto;
-    max-height: 150px;
-    margin-top: 8px;
-  }
-  .thumb {
-    width: 120px;
-    height: auto;
-    margin: 5px;
-    object-fit: cover;
-    border-radius: 8px;
-    user-select: none;
-  }
-  #fullscreenBtn {
-    position: absolute;
-    top: 10px;
-    right: 10px;
-    background: rgba(255,255,0,0.3);
-    border: none;
-    border-radius: 50%;
-    width: 30px;
-    height: 30px;
-    cursor: pointer;
-    font-weight: bold;
-    font-size: 20px;
-    color: black;
-    z-index: 20;
-    user-select: none;
-    line-height: 0;
-    display: flex;
-    justify-content: center;
-    align-items: center;
-    transition: background 0.3s;
-  }
-  #fullscreenBtn:hover {
-    background: rgba(255,255,0,0.7);
-  }
-
-  /* Ajustes para móviles */
-  @media (max-width: 600px) {
-    .btn-circle {
-      width: 50px;
-      height: 50px;
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Experimental Camera</title>
+  <style>
+    body, html {
+      margin: 0; padding: 0; height: 100%; background: #222; color: #fff; font-family: Arial, sans-serif;
+      display: flex; flex-direction: column; align-items: center; justify-content: flex-start;
     }
-    .btn-circle.small-btn {
-      width: 35px;
-      height: 35px;
-      font-size: 16px;
+    #cameraContainer {
+      position: relative;
+      width: 100vw;
+      max-width: 600px;
+      height: 80vh;
+      background: black;
+      overflow: hidden;
     }
-  }
-</style>
+    video {
+      display: none;
+    }
+    #videoCanvas {
+      width: 100%;
+      height: 100%;
+      background: black;
+      display: block;
+    }
+    .bottom-controls {
+      position: fixed;
+      bottom: 10px;
+      left: 50%;
+      transform: translateX(-50%);
+      display: flex;
+      gap: 20px;
+      z-index: 10;
+    }
+    button.btn-circle {
+      border: none;
+      border-radius: 50%;
+      width: 60px;
+      height: 60px;
+      font-size: 24px;
+      cursor: pointer;
+      outline: none;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      user-select: none;
+      background: #444;
+      color: white;
+      transition: background-color 0.3s;
+    }
+    button.btn-circle:hover {
+      background: #666;
+    }
+    button.small-btn {
+      width: 40px;
+      height: 40px;
+      font-size: 18px;
+    }
+    #filterToggle {
+      background: #ffeb3b; /* amarillo */
+      color: #000;
+      font-weight: bold;
+      position: relative;
+    }
+    #filterList {
+      position: absolute;
+      bottom: 70px;
+      left: 50%;
+      transform: translateX(-50%);
+      background: #ffeb3b;
+      color: #000;
+      list-style: none;
+      margin: 0; padding: 5px 10px;
+      border-radius: 8px;
+      box-shadow: 0 0 10px rgba(0,0,0,0.5);
+      display: none;
+      min-width: 140px;
+      text-align: center;
+      z-index: 20;
+    }
+    #filterList li {
+      padding: 6px 10px;
+      cursor: pointer;
+      border-radius: 4px;
+      user-select: none;
+    }
+    #filterList li:hover {
+      background: #f0d72d;
+    }
+    #gallery {
+      width: 100vw;
+      max-width: 600px;
+      max-height: 150px;
+      overflow-x: auto;
+      white-space: nowrap;
+      background: #111;
+      padding: 10px;
+      box-sizing: border-box;
+    }
+    #gallery img, #gallery video {
+      height: 130px;
+      margin-right: 10px;
+      border-radius: 8px;
+      background: #222;
+      display: inline-block;
+      vertical-align: middle;
+    }
+    #fullscreenBtn {
+      position: fixed;
+      top: 10px;
+      right: 10px;
+      width: 28px;
+      height: 28px;
+      background: rgba(255,255,255,0.15);
+      border-radius: 4px;
+      color: #eee;
+      font-size: 18px;
+      line-height: 28px;
+      text-align: center;
+      cursor: pointer;
+      user-select: none;
+      z-index: 50;
+      transition: background-color 0.3s;
+    }
+    #fullscreenBtn:hover {
+      background: rgba(255,255,255,0.35);
+    }
+  </style>
 </head>
 <body>
-  <main>
-    <div class="camera-container" id="cameraContainer">
-      <video id="video" autoplay playsinline muted></video>
-      <canvas id="videoCanvas"></canvas>
-      <canvas id="captureCanvas"></canvas>
-      <button id="fullscreenBtn" title="Pantalla completa">⬜</button>
-      <div class="bottom-controls">
-        <button id="takePhoto" class="btn-circle white" title="Tomar foto"></button>
-        <button id="startRecord" class="btn-circle red" title="Grabar video"></button>
-        <button id="filterToggle" class="btn-circle yellow" title="Seleccionar filtro"></button>
-      </div>
-      <ul id="filterList" class="hidden" aria-label="Lista de filtros">
-        <li data-filter="none">Sin filtro</li>
-        <li data-filter="grayscale">Gris</li>
-        <li data-filter="invert">Invertir</li>
-        <li data-filter="sepia">Sepia</li>
-      </ul>
-    </div>
-    <section id="gallery" aria-label="Galería de fotos y videos"></section>
-  </main>
+  <div id="cameraContainer">
+    <video id="video" autoplay playsinline muted></video>
+    <canvas id="videoCanvas"></canvas>
+  </div>
+
+  <div class="bottom-controls">
+    <button id="filterToggle" class="btn-circle">🎨</button>
+    <ul id="filterList">
+      <li data-filter="none">Normal</li>
+      <li data-filter="grayscale">Grayscale</li>
+      <li data-filter="invert">Invert</li>
+      <li data-filter="sepia">Sepia</li>
+      <li data-filter="glitch">Glitch</li>
+    </ul>
+
+    <button id="takePhotoBtn" class="btn-circle" title="Tomar foto" style="background:#fff; color:#000;">●</button>
+    <button id="startRecordBtn" class="btn-circle" title="Iniciar grabación" style="background:#f44336;">●</button>
+  </div>
+
+  <div id="gallery"></div>
+
+  <button id="fullscreenBtn" title="Pantalla completa">⛶</button>
+
+  <canvas id="captureCanvas" style="display:none;"></canvas>
 
   <script>
     const video = document.getElementById("video");
     const videoCanvas = document.getElementById("videoCanvas");
+    const videoCtx = videoCanvas.getContext("2d");
+
     const captureCanvas = document.getElementById("captureCanvas");
-    const takePhotoBtn = document.getElementById("takePhoto");
-    const startRecordBtn = document.getElementById("startRecord");
+    const captureCtx = captureCanvas.getContext("2d");
+
     const filterToggle = document.getElementById("filterToggle");
     const filterList = document.getElementById("filterList");
-    const gallery = document.getElementById("gallery");
-    const fullscreenBtn = document.getElementById("fullscreenBtn");
-    const cameraContainer = document.getElementById("cameraContainer");
 
-    let currentFilter = "none";
+    const takePhotoBtn = document.getElementById("takePhotoBtn");
+    const startRecordBtn = document.getElementById("startRecordBtn");
+    const fullscreenBtn = document.getElementById("fullscreenBtn");
+    const gallery = document.getElementById("gallery");
+
     let mediaStream = null;
     let mediaRecorder = null;
     let recordedChunks = [];
     let isRecording = false;
-    let pauseBtn = null;
-    let stopBtn = null;
-    let facingMode = "user";
+    let facingMode = "user"; // front camera
 
-    let canvasStream = null;
-    const videoCtx = videoCanvas.getContext("2d");
-    const captureCtx = captureCanvas.getContext("2d");
+    let currentFilter = "none";
 
-    async function startCamera() {
-      if(mediaStream) {
-        mediaStream.getTracks().forEach(track => track.stop());
-      }
-      try {
-        mediaStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode }, audio: true });
-        video.srcObject = mediaStream;
-
-        video.addEventListener('loadedmetadata', () => {
-          videoCanvas.width = video.videoWidth;
-          videoCanvas.height = video.videoHeight;
-          captureCanvas.width = video.videoWidth;
-          captureCanvas.height = video.videoHeight;
-        });
-
-        applyFilter(currentFilter);
-        drawVideoToCanvas();
-      } catch (err) {
-        alert("No se pudo acceder a la cámara.");
-        console.error(err);
-      }
-    }
-
-    function applyFilter(filter) {
-      currentFilter = filter;
-      switch (filter) {
-        case "grayscale": video.style.filter = "grayscale(1)"; break;
-        case "invert": video.style.filter = "invert(1)"; break;
-        case "sepia": video.style.filter = "sepia(1)"; break;
-        default: video.style.filter = "none";
-      }
-    }
-
+    // Dibuja video filtrado en canvas en espejo
     function drawVideoToCanvas() {
       if (!video.paused && !video.ended) {
         videoCtx.save();
         videoCtx.clearRect(0, 0, videoCanvas.width, videoCanvas.height);
         videoCtx.filter = getCanvasFilter(currentFilter);
-
         videoCtx.translate(videoCanvas.width, 0);
         videoCtx.scale(-1, 1);
         videoCtx.drawImage(video, 0, 0, videoCanvas.width, videoCanvas.height);
@@ -266,7 +199,35 @@
         case "grayscale": return "grayscale(1)";
         case "invert": return "invert(1)";
         case "sepia": return "sepia(1)";
+        case "glitch": 
+          // Simple glitch effect using canvas filters and manual pixels could be added here
+          // For simplicity let's invert and sepia layered:
+          return "invert(1) sepia(0.5)";
         default: return "none";
+      }
+    }
+
+    async function startCamera() {
+      if (mediaStream) {
+        mediaStream.getTracks().forEach(track => track.stop());
+      }
+      try {
+        mediaStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode }, audio: true });
+        video.srcObject = mediaStream;
+
+        await video.play();
+
+        video.addEventListener('loadedmetadata', () => {
+          videoCanvas.width = video.videoWidth;
+          videoCanvas.height = video.videoHeight;
+          captureCanvas.width = video.videoWidth;
+          captureCanvas.height = video.videoHeight;
+          drawVideoToCanvas();
+        }, { once: true });
+
+      } catch (err) {
+        alert("No se pudo acceder a la cámara.");
+        console.error(err);
       }
     }
 
@@ -277,11 +238,11 @@
       captureCtx.translate(captureCanvas.width, 0);
       captureCtx.scale(-1, 1);
       captureCtx.drawImage(video, 0, 0, captureCanvas.width, captureCanvas.height);
-      captureCtx.setTransform(1, 0, 0, 1, 0, 0); // reset transform
+      captureCtx.setTransform(1, 0, 0, 1, 0, 0);
 
       captureCanvas.toBlob(blob => {
         const imgURL = URL.createObjectURL(blob);
-        addToGallery(imgURL, 'image');
+        addToGallery(imgURL, "image");
       }, "image/jpeg");
     };
 
@@ -310,10 +271,13 @@
       }
     };
 
+    let pauseBtn = null;
+    let stopBtn = null;
+    let canvasStream = null;
+
     function startRecording() {
       recordedChunks = [];
 
-      // Capturar video del canvas (el que tiene el filtro)
       canvasStream = videoCanvas.captureStream(30);
       const audioTracks = mediaStream.getAudioTracks();
       audioTracks.forEach(track => canvasStream.addTrack(track));
@@ -348,6 +312,9 @@
           pauseBtn.textContent = "⏸";
           pauseBtn.classList.add("btn-circle", "small-btn");
           pauseBtn.title = "Pausar/Reanudar grabación";
+          pauseBtn.style.background = "#555";
+          pauseBtn.style.color = "#eee";
+          pauseBtn.style.marginLeft = "10px";
           pauseBtn.addEventListener("click", () => {
             if(mediaRecorder.state === "recording") mediaRecorder.pause();
             else if(mediaRecorder.state === "paused") mediaRecorder.resume();
@@ -359,6 +326,9 @@
           stopBtn.textContent = "⏹";
           stopBtn.classList.add("btn-circle", "small-btn");
           stopBtn.title = "Detener grabación";
+          stopBtn.style.background = "#555";
+          stopBtn.style.color = "#eee";
+          stopBtn.style.marginLeft = "10px";
           stopBtn.addEventListener("click", () => {
             stopRecording();
             if(pauseBtn) pauseBtn.remove();
@@ -378,19 +348,19 @@
     }
 
     filterToggle.addEventListener("click", () => {
-      filterList.classList.toggle("hidden");
+      filterList.style.display = filterList.style.display === "block" ? "none" : "block";
     });
 
     filterList.addEventListener("click", e => {
       if (e.target.tagName === "LI") {
-        applyFilter(e.target.dataset.filter);
-        filterList.classList.add("hidden");
+        currentFilter = e.target.dataset.filter;
+        filterList.style.display = "none";
       }
     });
 
     fullscreenBtn.addEventListener("click", () => {
       if (!document.fullscreenElement) {
-        cameraContainer.requestFullscreen();
+        document.documentElement.requestFullscreen();
       } else {
         document.exitFullscreen();
       }
