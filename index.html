@@ -7,34 +7,47 @@
   <link rel="stylesheet" href="style.css" />
 </head>
 <body>
+
   <div id="camera-container">
     <video id="video" autoplay playsinline></video>
-    <canvas id="canvas" style="display: none;"></canvas>
+    <canvas id="canvas"></canvas>
 
-    <div id="controls">
-      <button id="photoBtn" class="circle white"></button>
-      <button id="videoBtn" class="circle red"></button>
-      <button id="filterToggle" class="circle yellow"></button>
+    <!-- Botón pantalla completa y cambiar cámara -->
+    <div id="top-right-buttons">
+      <button id="fullscreen-btn">⛶</button>
     </div>
 
-    <div id="video-controls" style="display: none;">
-      <button id="pauseBtn" class="small gray">⏸</button>
-      <button id="stopBtn" class="small gray">⏹</button>
+    <!-- Controles inferiores -->
+    <div id="controls" class="control-row">
+      <button id="photo-btn" class="circle white"></button>
+      <button id="video-btn" class="circle red"></button>
+      <button id="filter-btn" class="circle yellow"></button>
     </div>
 
-    <button id="fullscreenBtn" class="fullscreen-toggle">⛶</button>
+    <!-- Controles de video activo -->
+    <div id="recording-controls" class="control-row hidden">
+      <button id="pause-btn" class="circle gray">⏸</button>
+      <button id="stop-btn" class="circle gray">■</button>
+    </div>
 
-    <div id="filterMenu" class="filter-menu hidden">
-      <div data-filter="none">Sin filtro</div>
-      <div data-filter="invert">Invertir</div>
-      <div data-filter="grayscale">Blanco y negro</div>
-      <div data-filter="sepia">Sepia</div>
-      <div data-filter="glitch">Glitch</div>
+    <!-- Lista de filtros -->
+    <div id="filter-menu" class="hidden">
+      <select id="filter-select">
+        <option value="none">Sin filtro</option>
+        <option value="glitch">Glitch</option>
+        <option value="invert">Invertir colores</option>
+        <option value="grayscale">Escala de grises</option>
+        <option value="sepia">Sepia</option>
+      </select>
     </div>
   </div>
 
-  <div id="gallery" class="gallery"></div>
+  <!-- Galería separada -->
+  <div id="gallery-container">
+    <h2>Galería</h2>
+    <div id="gallery"></div>
+  </div>
 
-  <script src="script.js"></script>
+  <script src="app.js"></script>
 </body>
 </html>
