@@ -129,3 +129,62 @@ video, #glcanvas {
   max-height: 120px;
   border: 2px solid white;
 }
+
+#gallery-container {
+  width: 100%;
+  max-height: 250px;
+  overflow-x: scroll;
+  overflow-y: hidden;
+  display: flex;
+  flex-direction: column;
+  background-color: #000;
+  padding: 10px;
+  box-sizing: border-box;
+}
+
+#gallery-container h2 {
+  color: white;
+  margin: 0 0 8px 10px;
+  font-size: 16px;
+  font-weight: normal;
+}
+
+#gallery {
+  display: flex;
+  gap: 12px;
+  overflow-x: auto;
+  padding-left: 10px;
+}
+
+#gallery img,
+#gallery video {
+  max-height: 150px;
+  border-radius: 6px;
+  border: 1px solid #444;
+}
+
+.gallery-item {
+  position: relative;
+  display: inline-block;
+}
+
+.gallery-actions {
+  position: absolute;
+  bottom: 4px;
+  left: 4px;
+  right: 4px;
+  display: flex;
+  justify-content: space-between;
+  gap: 5px;
+}
+
+.gallery-actions button {
+  font-size: 12px;
+  padding: 2px 5px;
+  background: rgba(0, 0, 0, 0.6);
+  border: none;
+  color: white;
+  border-radius: 4px;
+  cursor: pointer;
+}
+
