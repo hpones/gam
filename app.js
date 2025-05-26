@@ -1,152 +1,182 @@
-const video = document.getElementById("video");
-const canvas = document.getElementById("canvas");
-const glcanvas = document.getElementById("glcanvas");
-const filterBtn = document.getElementById("filter-toggle-btn");
-const filterMenu = document.getElementById("filter-menu");
-const filterSelect = document.getElementById("filter-select");
-const photoBtn = document.getElementById("photo-btn");
-const recordBtn = document.getElementById("record-btn");
-const pauseBtn = document.getElementById("pause-btn");
-const stopBtn = document.getElementById("stop-btn");
-const recordingControls = document.getElementById("recording-controls");
-const fullscreenBtn = document.getElementById("fullscreen-btn");
-const gallery = document.getElementById("gallery");
-let currentStream;
-let mediaRecorder;
+let video = document.getElementById("video");
+let canvas = document.getElementById("canvas");
+let glcanvas = document.getElementById("glcanvas");
+let filterSelect = document.getElementById("filterSelect");
+let filterButton = document.getElementById("filter-button");
+let fullscreenBtn = document.getElementById("fullscreen-button");
+let captureBtn = document.getElementById("capture-button");
+let recordBtn = document.getElementById("record-button");
+let pauseBtn = document.getElementById("pause-button");
+let stopBtn = document.getElementById("stop-button");
+let filtersDropdown = document.getElementById("filters-dropdown");
+let gallery = document.getElementById("gallery");
+
+let mediaStream = null;
+let mediaRecorder = null;
 let recordedChunks = [];
-let usingFrontCamera = true;
 let recording = false;
 let paused = false;
+let useFrontCamera = true;
+let currentFilter = "none";
 
-// Initialize WebGL context
-let gl, shaderProgram, texture, filter = 'none';
-function initWebGL() {
+// WebGL context setup
+let gl = glcanvas.getContext("webgl") || glcanvas.getContext("experimental-webgl");
+let videoTexture, shaderProgram, positionBuffer;
+let filterPrograms = {};
+
+// Vertex shader
+const vertexShaderSource = `
+  attribute vec2 a_position;
+  varying vec2 v_texCoord;
+  void main() {
+    v_texCoord = a_position * 0.5 + 0.5;
+    gl_Position = vec4(a_position, 0, 1);
+  }
+`;
+
+// Fragment shaders
+const fragmentShaders = {
+  none: `
+    precision mediump float;
+    varying vec2 v_texCoord;
+    uniform sampler2D u_image;
+    void main() {
+      gl_FragColor = texture2D(u_image, v_texCoord);
+    }
+  `,
+  grayscale: `
+    precision mediump float;
+    varying vec2 v_texCoord;
+    uniform sampler2D u_image;
+    void main() {
+      vec4 color = texture2D(u_image, v_texCoord);
+      float gray = dot(color.rgb, vec3(0.299, 0.587, 0.114));
+      gl_FragColor = vec4(vec3(gray), 1.0);
+    }
+  `,
+  invert: `
+    precision mediump float;
+    varying vec2 v_texCoord;
+    uniform sampler2D u_image;
+    void main() {
+      vec4 color = texture2D(u_image, v_texCoord);
+      gl_FragColor = vec4(vec3(1.0) - color.rgb, 1.0);
+    }
+  `,
+  sepia: `
+    precision mediump float;
+    varying vec2 v_texCoord;
+    uniform sampler2D u_image;
+    void main() {
+      vec4 color = texture2D(u_image, v_texCoord);
+      float r = dot(color.rgb, vec3(0.393, 0.769, 0.189));
+      float g = dot(color.rgb, vec3(0.349, 0.686, 0.168));
+      float b = dot(color.rgb, vec3(0.272, 0.534, 0.131));
+      gl_FragColor = vec4(r, g, b, 1.0);
+    }
+  `
+};
+
+function createShader(gl, type, source) {
+  const shader = gl.createShader(type);
+  gl.shaderSource(shader, source);
+  gl.compileShader(shader);
+  return shader;
+}
+
+function createProgram(vertexSrc, fragmentSrc) {
+  const vs = createShader(gl, gl.VERTEX_SHADER, vertexSrc);
+  const fs = createShader(gl, gl.FRAGMENT_SHADER, fragmentSrc);
+  const program = gl.createProgram();
+  gl.attachShader(program, vs);
+  gl.attachShader(program, fs);
+  gl.linkProgram(program);
+  return program;
+}
+
+function setupGL() {
+  for (let name in fragmentShaders) {
+    filterPrograms[name] = createProgram(vertexShaderSource, fragmentShaders[name]);
+  }
+  positionBuffer = gl.createBuffer();
+  gl.bindBuffer(gl.ARRAY_BUFFER, positionBuffer);
+  gl.bufferData(
+    gl.ARRAY_BUFFER,
+    new Float32Array([-1, -1, 1, -1, -1, 1, -1, 1, 1, -1, 1, 1]),
+    gl.STATIC_DRAW
+  );
+  videoTexture = gl.createTexture();
+  gl.bindTexture(gl.TEXTURE_2D, videoTexture);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+}
+
+function drawGL() {
   glcanvas.width = video.videoWidth;
   glcanvas.height = video.videoHeight;
-  gl = glcanvas.getContext("webgl") || glcanvas.getContext("experimental-webgl");
-  const vs = `
-    attribute vec2 a_position;
-    attribute vec2 a_texCoord;
-    varying vec2 v_texCoord;
-    void main() {
-      gl_Position = vec4(a_position, 0, 1);
-      v_texCoord = a_texCoord;
-    }`;
-  const fsBase = {
-    none: `precision mediump float;
-      varying vec2 v_texCoord;
-      uniform sampler2D u_image;
-      void main() {
-        gl_FragColor = texture2D(u_image, v_texCoord);
-      }`,
-    glitch: `precision mediump float;
-      varying vec2 v_texCoord;
-      uniform sampler2D u_image;
-      void main() {
-        vec4 color = texture2D(u_image, v_texCoord);
-        gl_FragColor = vec4(color.rg, 1.0 - color.b, color.a);
-      }`,
-    rgb: `precision mediump float;
-      varying vec2 v_texCoord;
-      uniform sampler2D u_image;
-      void main() {
-        vec2 offset = vec2(0.01, 0);
-        float r = texture2D(u_image, v_texCoord + offset).r;
-        float g = texture2D(u_image, v_texCoord).g;
-        float b = texture2D(u_image, v_texCoord - offset).b;
-        gl_FragColor = vec4(r, g, b, 1.0);
-      }`,
-    bw: `precision mediump float;
-      varying vec2 v_texCoord;
-      uniform sampler2D u_image;
-      void main() {
-        vec4 color = texture2D(u_image, v_texCoord);
-        float gray = (color.r + color.g + color.b) / 3.0;
-        gl_FragColor = vec4(gray, gray, gray, 1.0);
-      }`,
-    invert: `precision mediump float;
-      varying vec2 v_texCoord;
-      uniform sampler2D u_image;
-      void main() {
-        gl_FragColor = vec4(1.0 - texture2D(u_image, v_texCoord).rgb, 1.0);
-      }`
-  };
+  gl.viewport(0, 0, glcanvas.width, glcanvas.height);
+  gl.bindTexture(gl.TEXTURE_2D, videoTexture);
+  gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, video);
 
-  const vertexShader = gl.createShader(gl.VERTEX_SHADER);
-  gl.shaderSource(vertexShader, vs);
-  gl.compileShader(vertexShader);
-
-  const fragmentShader = gl.createShader(gl.FRAGMENT_SHADER);
-  gl.shaderSource(fragmentShader, fsBase[filter] || fsBase.none);
-  gl.compileShader(fragmentShader);
-
-  shaderProgram = gl.createProgram();
-  gl.attachShader(shaderProgram, vertexShader);
-  gl.attachShader(shaderProgram, fragmentShader);
-  gl.linkProgram(shaderProgram);
-  gl.useProgram(shaderProgram);
-
-  const vertices = new Float32Array([
-    -1, -1, 0, 1,
-     1, -1, 1, 1,
-    -1,  1, 0, 0,
-     1,  1, 1, 0
-  ]);
-
-  const buffer = gl.createBuffer();
-  gl.bindBuffer(gl.ARRAY_BUFFER, buffer);
-  gl.bufferData(gl.ARRAY_BUFFER, vertices, gl.STATIC_DRAW);
-
-  const aPosition = gl.getAttribLocation(shaderProgram, "a_position");
-  const aTexCoord = gl.getAttribLocation(shaderProgram, "a_texCoord");
-
-  gl.enableVertexAttribArray(aPosition);
-  gl.vertexAttribPointer(aPosition, 2, gl.FLOAT, false, 16, 0);
-  gl.enableVertexAttribArray(aTexCoord);
-  gl.vertexAttribPointer(aTexCoord, 2, gl.FLOAT, false, 16, 8);
-
-  texture = gl.createTexture();
-  gl.bindTexture(gl.TEXTURE_2D, texture);
-  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
-  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
-  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
-
-  draw();
+  gl.useProgram(filterPrograms[currentFilter]);
+  const posLoc = gl.getAttribLocation(filterPrograms[currentFilter], "a_position");
+  gl.enableVertexAttribArray(posLoc);
+  gl.bindBuffer(gl.ARRAY_BUFFER, positionBuffer);
+  gl.vertexAttribPointer(posLoc, 2, gl.FLOAT, false, 0, 0);
+  gl.drawArrays(gl.TRIANGLES, 0, 6);
+  requestAnimationFrame(drawGL);
 }
 
-function draw() {
-  if (gl && video.readyState >= 2) {
-    gl.texImage2D(
-      gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA,
-      gl.UNSIGNED_BYTE, video
-    );
-    gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
+async function initCamera() {
+  if (mediaStream) {
+    mediaStream.getTracks().forEach(track => track.stop());
   }
-  requestAnimationFrame(draw);
-}
-
-async function startCamera() {
-  if (currentStream) {
-    currentStream.getTracks().forEach(track => track.stop());
-  }
-
-  const constraints = {
-    video: {
-      facingMode: usingFrontCamera ? "user" : "environment"
-    },
-    audio: true
-  };
-
   try {
-    currentStream = await navigator.mediaDevices.getUserMedia(constraints);
-    video.srcObject = currentStream;
-    video.onloadedmetadata = () => {
-      video.play();
-      initWebGL();
-    };
+    mediaStream = await navigator.mediaDevices.getUserMedia({
+      video: { facingMode: useFrontCamera ? "user" : "environment" },
+      audio: true
+    });
+    video.srcObject = mediaStream;
+    video.play();
+    setupGL();
+    requestAnimationFrame(drawGL);
   } catch (err) {
-    alert("Error al acceder a la cámara");
+    alert("No se puede acceder a la cámara.");
   }
+}
+
+function toggleFullScreen() {
+  if (!document.fullscreenElement) {
+    document.documentElement.requestFullscreen();
+  } else {
+    document.exitFullscreen();
+  }
+}
+
+function createGalleryItem(element, blob = null) {
+  const wrapper = document.createElement("div");
+  wrapper.className = "gallery-item";
+
+  const actions = document.createElement("div");
+  actions.className = "gallery-actions";
+
+  const delBtn = document.createElement("button");
+  delBtn.textContent = "Eliminar";
+  delBtn.onclick = () => wrapper.remove();
+
+  const dlBtn = document.createElement("button");
+  dlBtn.textContent = "Descargar";
+  dlBtn.onclick = () => {
+    const a = document.createElement("a");
+    a.href = blob ? URL.createObjectURL(blob) : element.src;
+    a.download = blob ? "video.webm" : "photo.png";
+    a.click();
+  };
+
+  actions.appendChild(dlBtn);
+  actions.appendChild(delBtn);
+  wrapper.appendChild(element);
+  wrapper.appendChild(actions);
+  gallery.appendChild(wrapper);
 }
 
 function takePhoto() {
@@ -156,13 +186,12 @@ function takePhoto() {
   ctx.drawImage(glcanvas, 0, 0, canvas.width, canvas.height);
   const image = new Image();
   image.src = canvas.toDataURL("image/png");
-  gallery.appendChild(image);
+  createGalleryItem(image);
 }
 
 function startRecording() {
-  const stream = glcanvas.captureStream(30);
-  mediaRecorder = new MediaRecorder(stream);
   recordedChunks = [];
+  mediaRecorder = new MediaRecorder(canvas.captureStream());
   mediaRecorder.ondataavailable = e => {
     if (e.data.size > 0) recordedChunks.push(e.data);
   };
@@ -172,66 +201,62 @@ function startRecording() {
     const videoEl = document.createElement("video");
     videoEl.controls = true;
     videoEl.src = url;
-    gallery.appendChild(videoEl);
+    createGalleryItem(videoEl, blob);
   };
   mediaRecorder.start();
   recording = true;
-  document.getElementById("controls").style.display = "none";
-  recordingControls.style.display = "flex";
+  pauseBtn.style.display = "inline-block";
+  stopBtn.style.display = "inline-block";
+  captureBtn.style.display = "none";
+  recordBtn.style.display = "none";
+  filterButton.style.display = "none";
+}
+
+function pauseRecording() {
+  if (!mediaRecorder) return;
+  if (!paused) {
+    mediaRecorder.pause();
+    pauseBtn.textContent = "▶️";
+    paused = true;
+  } else {
+    mediaRecorder.resume();
+    pauseBtn.textContent = "⏸️";
+    paused = false;
+  }
 }
 
 function stopRecording() {
   if (mediaRecorder && recording) {
     mediaRecorder.stop();
     recording = false;
-    document.getElementById("controls").style.display = "flex";
-    recordingControls.style.display = "none";
+    paused = false;
+    pauseBtn.textContent = "⏸️";
+    pauseBtn.style.display = "none";
+    stopBtn.style.display = "none";
+    captureBtn.style.display = "inline-block";
+    recordBtn.style.display = "inline-block";
+    filterButton.style.display = "inline-block";
   }
 }
 
-function togglePause() {
-  if (!mediaRecorder) return;
-  if (paused) {
-    mediaRecorder.resume();
-    pauseBtn.textContent = "⏸";
-  } else {
-    mediaRecorder.pause();
-    pauseBtn.textContent = "▶";
-  }
-  paused = !paused;
-}
+captureBtn.onclick = takePhoto;
+recordBtn.onclick = startRecording;
+pauseBtn.onclick = pauseRecording;
+stopBtn.onclick = stopRecording;
+fullscreenBtn.onclick = toggleFullScreen;
+filterButton.onclick = () => {
+  filtersDropdown.style.display =
+    filtersDropdown.style.display === "block" ? "none" : "block";
+};
 
-// UI Event Listeners
-filterBtn.addEventListener("click", () => {
-  filterMenu.classList.toggle("hidden");
-});
+filterSelect.onchange = () => {
+  currentFilter = filterSelect.value;
+  filtersDropdown.style.display = "none";
+};
 
-filterSelect.addEventListener("change", () => {
-  filter = filterSelect.value;
-  initWebGL();
-  filterMenu.classList.add("hidden");
-});
+video.ondblclick = () => {
+  useFrontCamera = !useFrontCamera;
+  initCamera();
+};
 
-photoBtn.addEventListener("click", takePhoto);
-recordBtn.addEventListener("click", startRecording);
-stopBtn.addEventListener("click", stopRecording);
-pauseBtn.addEventListener("click", togglePause);
-
-fullscreenBtn.addEventListener("click", () => {
-  const el = document.documentElement;
-  if (!document.fullscreenElement) {
-    el.requestFullscreen();
-    document.querySelectorAll("button").forEach(b => b.style.opacity = 0.1);
-  } else {
-    document.exitFullscreen();
-    document.querySelectorAll("button").forEach(b => b.style.opacity = 0.9);
-  }
-});
-
-glcanvas.addEventListener("dblclick", () => {
-  usingFrontCamera = !usingFrontCamera;
-  startCamera();
-});
-
-// Start
-startCamera();
+window.onload = initCamera;
