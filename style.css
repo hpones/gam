@@ -1,8 +1,9 @@
 body {
   margin: 0;
+  background: black;
+  color: white;
   font-family: sans-serif;
-  background: #000;
-  color: #fff;
+  overflow: hidden;
   display: flex;
   flex-direction: column;
 }
@@ -12,60 +13,78 @@ body {
   width: 100%;
   height: 100vh;
   overflow: hidden;
-  background: black;
 }
 
-video, canvas {
+video, #glcanvas {
   position: absolute;
+  top: 0;
+  left: 0;
   width: 100%;
   height: 100%;
   object-fit: cover;
-  transform: scaleX(1);
+  transform: scaleX(-1);
 }
 
-#top-right-buttons {
-  position: absolute;
-  top: 10px;
-  right: 10px;
-  z-index: 10;
-}
-
-#fullscreen-btn {
-  background: rgba(255,255,255,0.1);
-  border: none;
-  color: white;
-  font-size: 20px;
-  padding: 5px 10px;
-  border-radius: 5px;
-  cursor: pointer;
-}
-
-.control-row {
+#controls {
   position: absolute;
   bottom: 10px;
   width: 100%;
   display: flex;
   justify-content: center;
-  gap: 20px;
-  z-index: 10;
+  gap: 30px;
+  z-index: 2;
 }
 
-.circle {
+.control-button {
   width: 60px;
   height: 60px;
   border-radius: 50%;
   border: none;
-  cursor: pointer;
-  opacity: 0.85;
+  opacity: 0.9;
 }
 
-.circle.white { background: white; }
-.circle.red { background: red; }
-.circle.yellow { background: yellow; }
-.circle.gray { background: gray; }
+#photo-btn {
+  background: white;
+}
 
-.hidden {
-  display: none !important;
+#record-btn {
+  background: red;
+}
+
+.yellow {
+  background: yellow;
+}
+
+#recording-controls {
+  position: absolute;
+  bottom: 10px;
+  width: 100%;
+  display: flex;
+  justify-content: center;
+  gap: 30px;
+  z-index: 2;
+  display: none;
+}
+
+.small-button {
+  width: 45px;
+  height: 45px;
+  border-radius: 50%;
+  background: gray;
+  color: white;
+  border: none;
+  opacity: 0.9;
+}
+
+.fullscreen-toggle {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  background: transparent;
+  color: white;
+  border: none;
+  font-size: 24px;
+  opacity: 0.6;
 }
 
 #filter-menu {
@@ -73,15 +92,30 @@ video, canvas {
   bottom: 80px;
   left: 50%;
   transform: translateX(-50%);
-  z-index: 10;
-  background: rgba(0,0,0,0.7);
-  padding: 10px;
-  border-radius: 5px;
+  background: rgba(0, 0, 0, 0.6);
+  padding: 5px;
+  border-radius: 8px;
+  z-index: 3;
 }
 
-#gallery-container {
-  padding: 10px;
+#filter-menu select {
+  background: black;
+  color: white;
+  border: none;
+  padding: 5px;
+}
+
+.hidden {
+  display: none;
+}
+
+#gallery-section {
+  position: relative;
   background: #111;
+  padding: 10px;
+  overflow-y: auto;
+  height: auto;
+  max-height: 40vh;
 }
 
 #gallery {
@@ -90,9 +124,8 @@ video, canvas {
   gap: 10px;
 }
 
-#gallery video,
-#gallery img {
-  width: 120px;
-  height: auto;
-  border: 1px solid #444;
+#gallery img,
+#gallery video {
+  max-height: 120px;
+  border: 2px solid white;
 }
