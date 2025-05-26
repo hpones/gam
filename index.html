@@ -1,58 +1,47 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="es">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>Experimental Camera</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>App de Cámara</title>
   <link rel="stylesheet" href="style.css" />
 </head>
 <body>
-
   <div id="camera-container">
-    <video id="video" autoplay playsinline></video>
-    <canvas id="canvas" style="display: none;"></canvas>
+    <video id="video" autoplay muted playsinline></video>
     <canvas id="glcanvas"></canvas>
-    
-    <!-- Botones inferiores -->
+    <canvas id="canvas" style="display: none;"></canvas>
+
+    <!-- Botones de acción -->
     <div id="controls">
-      <button id="photo-btn" class="control-button"></button>
-      <button id="record-btn" class="control-button"></button>
-      <button id="filter-toggle-btn" class="control-button yellow"></button>
+      <button id="capture-button" class="control-button"></button>
+      <button id="record-button" class="control-button red"></button>
+      <button id="filter-button" class="control-button yellow"></button>
     </div>
 
-    <!-- Botones pequeños durante grabación -->
+    <!-- Botones de grabación -->
     <div id="recording-controls">
-      <button id="pause-btn" class="small-button">⏸</button>
-      <button id="stop-btn" class="small-button">⏹</button>
+      <button id="pause-button" class="small-button">⏸️</button>
+      <button id="stop-button" class="small-button">⏹️</button>
     </div>
 
-    <!-- Botón superior de pantalla completa -->
-    <button id="fullscreen-btn" class="fullscreen-toggle">⛶</button>
+    <!-- Botón pantalla completa -->
+    <button id="fullscreen-button" class="fullscreen-toggle">⛶</button>
+
+    <!-- Filtros -->
+    <div id="filters-dropdown" class="filters-dropdown">
+      <select id="filterSelect">
+        <option value="none">Sin filtro</option>
+        <option value="grayscale">Gris</option>
+        <option value="invert">Invertido</option>
+        <option value="sepia">Sepia</option>
+      </select>
+    </div>
   </div>
 
-  <!-- Selector de filtros minimalista -->
-  <div id="filter-menu" class="hidden">
-    <select id="filter-select">
-      <option value="none">Ninguno</option>
-      <option value="glitch">Glitch</option>
-      <option value="rgb">RGB Shift</option>
-      <option value="bw">Blanco y negro</option>
-      <option value="invert">Invertir</option>
-    </select>
-  </div>
-
-  <!-- Galería separada -->
-  <div id="gallery-section">
-    <h2>Galería</h2>
-    <div id="gallery"></div>
-  </div>
+  <!-- Galería de imágenes y videos -->
+  <div id="gallery"></div>
 
   <script src="app.js"></script>
-
-<div id="gallery-container">
-  <h2>Galería</h2>
-  <div id="gallery"></div>
-</div>
-
 </body>
 </html>
