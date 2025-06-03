@@ -113,7 +113,6 @@ function drawVideoFrame() {
 
         ctx.putImageData(imageData, 0, 0);
       }
-
       ctx.restore();
     }
     requestAnimationFrame(draw);
