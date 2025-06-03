@@ -92,12 +92,11 @@ function drawVideoFrame() {
           const r = data[i], g = data[i + 1], b = data[i + 2];          const brightness = (r + g + b) / 3;
 
           if (selectedFilter === 'eco-pink') {
-            if (brightness < 123) {
+            if (brightness < 95) {
               const noise = (Math.random() - 0.5) * 100;
-              data[i] = Math.min(255;
-              data[i + 1] = Math.max(0;
-              data[i + 2] = Math.min(255, b + 150);
-              data[i + 2] = Math.min(255, b + 92 + noise);
+              data[i] = Math.min(255, r + 80);
+              data[i + 1] = Math.max(0, g - 50);
+              data[i + 2] = Math.min(255, b + 100); 
               
             }
           } else if (selectedFilter === 'weird') {
