@@ -32,6 +32,10 @@ function applyFilter(ctx) {
     case 'sepia':
       ctx.filter = 'sepia(100%)';
       break;
+    case 'eco-pink':
+    case 'weird':
+      ctx.filter = 'none';
+      break;
     default:
       ctx.filter = 'none';
   }
@@ -76,9 +80,40 @@ function drawVideoFrame() {
       ctx.save();
       if (usingFrontCamera) {
         ctx.translate(glcanvas.width, 0);
-        ctx.scale(-1, 1); // efecto espejo solo en cámara frontal
+        ctx.scale(-1, 1);
       }
       ctx.drawImage(video, 0, 0, glcanvas.width, glcanvas.height);
+
+      if (selectedFilter === 'eco-pink' || selectedFilter === 'weird') {
+        let imageData = ctx.getImageData(0, 0, glcanvas.width, glcanvas.height);
+        let data = imageData.data;
+
+        for (let i = 0; i < data.length; i += 4) {
+          const r = data[i], g = data[i + 1], b = data[i + 2];
+          const brightness = (r + g + b) / 3;
+
+          if (selectedFilter === 'eco-pink') {
+            if (brightness < 80) {
+              data[i] = Math.min(255, r + 80);
+              data[i + 1] = Math.max(0, g - 50);
+              data[i + 2] = Math.min(255, b + 100);
+            }
+          } else if (selectedFilter === 'weird') {
+            if (brightness > 180) {
+              data[i] = b;
+              data[i + 1] = r;
+              data[i + 2] = g;
+            } else if (brightness < 100) {
+              data[i] = data[i] * Math.random();
+              data[i + 1] = data[i + 1] * Math.random();
+              data[i + 2] = data[i + 2] * Math.random();
+            }
+          }
+        }
+
+        ctx.putImageData(imageData, 0, 0);
+      }
+
       ctx.restore();
     }
     requestAnimationFrame(draw);
