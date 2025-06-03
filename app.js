@@ -98,6 +98,7 @@ function drawVideoFrame() {
               data[i + 1] = Math.max(0;
               data[i + 2] = Math.min(255, b + 150);
               data[i + 2] = Math.min(255, b + 92 + noise);
+              data[i + 1] = Math.max(0, g - 30 + noise);
             }
           } else if (selectedFilter === 'weird') {
             if (brightness > 180) {
