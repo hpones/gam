@@ -93,10 +93,10 @@ function drawVideoFrame() {
           const brightness = (r + g + b) / 3;
 
           if (selectedFilter === 'eco-pink') {
-            if (brightness < 80) {
-              data[i] = Math.min(255, r + 80);
-              data[i + 1] = Math.max(0, g - 50);
-              data[i + 2] = Math.min(255, b + 100);
+            if (brightness < 123) {
+              data[i] = Math.min(255;
+              data[i + 1] = Math.max(0;
+              data[i + 2] = Math.min(255, b + 150);
             }
           } else if (selectedFilter === 'weird') {
             if (brightness > 180) {
