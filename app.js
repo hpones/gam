@@ -1,148 +1,196 @@
-let currentCamera = 'user';
 let video = document.getElementById('video');
 let glcanvas = document.getElementById('glcanvas');
-let photoGallery = document.getElementById('photo-gallery');
-let mediaRecorder;
-let recordedChunks = [];
-let filter = 'none';
-let isRecording = false;
-let stream;
-let isPaused = false;
+let canvas = document.getElementById('canvas');
+let filterSelect = document.getElementById('filterSelect');
+let captureBtn = document.getElementById('capture-button');
+let recordBtn = document.getElementById('record-button');
+let pauseBtn = document.getElementById('pause-button');
+let stopBtn = document.getElementById('stop-button');
+let fullscreenBtn = document.getElementById('fullscreen-button');
+let filterBtn = document.getElementById('filter-button');
+let filtersDropdown = document.getElementById('filters-dropdown');
+let gallery = document.getElementById('gallery');
+let controls = document.getElementById('controls');
+let recordingControls = document.getElementById('recording-controls');
 
-// Iniciar cámara con facingMode
-async function startCamera(facingMode = 'user') {
-  if (window.stream) {
-    window.stream.getTracks().forEach(track => track.stop());
+let currentStream;
+let mediaRecorder;
+let chunks = [];
+let isRecording = false;
+let isPaused = false;
+let usingFrontCamera = true;
+let selectedFilter = 'none';
+
+function applyFilter(ctx) {
+  switch (selectedFilter) {
+    case 'grayscale':
+      ctx.filter = 'grayscale(100%)';
+      break;
+    case 'invert':
+      ctx.filter = 'invert(100%)';
+      break;
+    case 'sepia':
+      ctx.filter = 'sepia(100%)';
+      break;
+    default:
+      ctx.filter = 'none';
+  }
+}
+
+async function startCamera() {
+  if (currentStream) {
+    currentStream.getTracks().forEach(track => track.stop());
   }
 
   try {
-    const constraints = {
+    currentStream = await navigator.mediaDevices.getUserMedia({
       video: {
-        facingMode: { exact: facingMode }
+        facingMode: usingFrontCamera ? 'user' : 'environment',
+        width: { ideal: 1280 },
+        height: { ideal: 720 }
       },
       audio: true
-    };
+    });
 
-    stream = await navigator.mediaDevices.getUserMedia(constraints);
-    window.stream = stream;
-    video.srcObject = stream;
-    video.play();
+    video.srcObject = currentStream;
+
+    video.onloadedmetadata = () => {
+      video.play();
+      glcanvas.width = video.videoWidth;
+      glcanvas.height = video.videoHeight;
+      drawVideoFrame();
+    };
   } catch (err) {
     console.error('No se pudo acceder a la cámara:', err);
-    alert('No se pudo acceder a la cámara.');
+    alert('No se pudo acceder a la cámara. Revisa los permisos.');
   }
 }
 
-// Doble clic para cambiar entre cámara frontal y trasera
-glcanvas.addEventListener('dblclick', () => {
-  currentCamera = currentCamera === 'user' ? 'environment' : 'user';
-  startCamera(currentCamera);
+function drawVideoFrame() {
+  const ctx = glcanvas.getContext('2d');
+  function draw() {
+    if (video.readyState === video.HAVE_ENOUGH_DATA) {
+      glcanvas.width = video.videoWidth;
+      glcanvas.height = video.videoHeight;
+      applyFilter(ctx);
+      ctx.save();
+      if (usingFrontCamera) {
+        ctx.translate(glcanvas.width, 0);
+        ctx.scale(-1, 1); // efecto espejo solo en cámara frontal
+      }
+      ctx.drawImage(video, 0, 0, glcanvas.width, glcanvas.height);
+      ctx.restore();
+    }
+    requestAnimationFrame(draw);
+  }
+  draw();
+}
+
+captureBtn.addEventListener('click', () => {
+  canvas.width = glcanvas.width;
+  canvas.height = glcanvas.height;
+  let ctx = canvas.getContext('2d');
+  applyFilter(ctx);
+  if (usingFrontCamera) {
+    ctx.translate(canvas.width, 0);
+    ctx.scale(-1, 1);
+  }
+  ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+  let img = new Image();
+  img.src = canvas.toDataURL('image/png');
+  addToGallery(img, 'img');
 });
 
-// Aplicar filtro seleccionado
-function applyFilter(newFilter) {
-  filter = newFilter;
-  glcanvas.className = filter;
-}
-
-// Capturar foto
-function capturePhoto() {
-  const canvas = document.createElement('canvas');
-  canvas.width = video.videoWidth;
-  canvas.height = video.videoHeight;
-  const context = canvas.getContext('2d');
-
-  context.filter = getComputedStyle(glcanvas).filter;
-  context.drawImage(video, 0, 0, canvas.width, canvas.height);
-
-  const img = document.createElement('img');
-  img.src = canvas.toDataURL('image/png');
-  photoGallery.appendChild(img);
-}
-
-// Iniciar grabación
-function startRecording() {
-  if (!stream) return;
-
-  recordedChunks = [];
-  mediaRecorder = new MediaRecorder(stream);
-  mediaRecorder.ondataavailable = event => {
-    if (event.data.size > 0) {
-      recordedChunks.push(event.data);
-    }
-  };
-  mediaRecorder.onstop = saveRecording;
-  mediaRecorder.start();
-  isRecording = true;
-}
-
-// Pausar o reanudar grabación
-function togglePause() {
-  if (!mediaRecorder) return;
-
-  if (!isPaused) {
-    mediaRecorder.pause();
-    isPaused = true;
-  } else {
-    mediaRecorder.resume();
-    isPaused = false;
+recordBtn.addEventListener('click', () => {
+  if (!isRecording) {
+    chunks = [];
+    let stream = glcanvas.captureStream();
+    mediaRecorder = new MediaRecorder(stream);
+    mediaRecorder.ondataavailable = e => {
+      if (e.data.size > 0) chunks.push(e.data);
+    };
+    mediaRecorder.onstop = () => {
+      const blob = new Blob(chunks, { type: 'video/webm' });
+      const url = URL.createObjectURL(blob);
+      let vid = document.createElement('video');
+      vid.src = url;
+      vid.controls = true;
+      addToGallery(vid, 'video');
+    };
+    mediaRecorder.start();
+    isRecording = true;
+    controls.style.display = 'none';
+    recordingControls.style.display = 'flex';
   }
-}
+});
 
-// Detener grabación
-function stopRecording() {
-  if (!mediaRecorder) return;
+pauseBtn.addEventListener('click', () => {
+  if (isPaused) {
+    mediaRecorder.resume();
+    pauseBtn.textContent = '⏸️';
+  } else {
+    mediaRecorder.pause();
+    pauseBtn.textContent = '▶️';
+  }
+  isPaused = !isPaused;
+});
 
+stopBtn.addEventListener('click', () => {
   mediaRecorder.stop();
   isRecording = false;
-  isPaused = false;
-}
-
-// Guardar video
-function saveRecording() {
-  const blob = new Blob(recordedChunks, { type: 'video/webm' });
-  const url = URL.createObjectURL(blob);
-  const videoElement = document.createElement('video');
-  videoElement.controls = true;
-  videoElement.src = url;
-  photoGallery.appendChild(videoElement);
-}
-
-document.getElementById('photo-btn').addEventListener('click', capturePhoto);
-document.getElementById('video-btn').addEventListener('click', () => {
-  document.getElementById('photo-btn').style.display = 'none';
-  document.getElementById('video-btn').style.display = 'none';
-  document.getElementById('pause-btn').style.display = 'inline-block';
-  document.getElementById('stop-btn').style.display = 'inline-block';
-  startRecording();
-});
-document.getElementById('pause-btn').addEventListener('click', () => {
-  togglePause();
-  document.getElementById('pause-btn').classList.toggle('paused', isPaused);
-});
-document.getElementById('stop-btn').addEventListener('click', () => {
-  stopRecording();
-  document.getElementById('photo-btn').style.display = 'inline-block';
-  document.getElementById('video-btn').style.display = 'inline-block';
-  document.getElementById('pause-btn').style.display = 'none';
-  document.getElementById('stop-btn').style.display = 'none';
-});
-document.getElementById('filter-select').addEventListener('change', (e) => {
-  applyFilter(e.target.value);
-  document.getElementById('filter-select').style.display = 'none';
+  controls.style.display = 'flex';
+  recordingControls.style.display = 'none';
 });
 
-document.getElementById('filter-btn').addEventListener('click', () => {
-  const filterSelect = document.getElementById('filter-select');
-  filterSelect.style.display = filterSelect.style.display === 'block' ? 'none' : 'block';
+filterBtn.addEventListener('click', () => {
+  filtersDropdown.style.display =
+    filtersDropdown.style.display === 'block' ? 'none' : 'block';
 });
 
-document.getElementById('fullscreen-btn').addEventListener('click', () => {
-  if (document.fullscreenElement) {
-    document.exitFullscreen();
+filterSelect.addEventListener('change', () => {
+  selectedFilter = filterSelect.value;
+  filtersDropdown.style.display = 'none';
+});
+
+fullscreenBtn.addEventListener('click', () => {
+  if (!document.fullscreenElement) {
+    document.documentElement.requestFullscreen();
   } else {
-    glcanvas.requestFullscreen();
+    document.exitFullscreen();
   }
 });
 
-startCamera(currentCamera);
+function addToGallery(element, type) {
+  let container = document.createElement('div');
+  container.className = 'gallery-item';
+  container.appendChild(element);
+
+  let actions = document.createElement('div');
+  actions.className = 'gallery-actions';
+
+  let downloadBtn = document.createElement('button');
+  downloadBtn.textContent = 'Descargar';
+  downloadBtn.onclick = () => {
+    const a = document.createElement('a');
+    a.href = element.src;
+    a.download = type === 'img' ? 'foto.png' : 'video.webm';
+    a.click();
+  };
+
+  let deleteBtn = document.createElement('button');
+  deleteBtn.textContent = 'Eliminar';
+  deleteBtn.onclick = () => container.remove();
+
+  actions.appendChild(downloadBtn);
+  actions.appendChild(deleteBtn);
+  container.appendChild(actions);
+
+  gallery.prepend(container);
+}
+
+video.addEventListener('dblclick', () => {
+  usingFrontCamera = !usingFrontCamera;
+  startCamera();
+});
+
+startCamera();
