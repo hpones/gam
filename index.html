@@ -1,57 +1,42 @@
+<!DOCTYPE html>
 <html lang="es">
 <head>
-<meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>App de Cámara</title>
+  <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
   <title>Experimental Camera</title>
-<link rel="stylesheet" href="style.css" />
+  <link rel="stylesheet" href="style.css" />
 </head>
 <body>
-<div id="camera-container">
-    <video id="video" autoplay muted playsinline></video>
+  <div id="camera-container">
     <video id="video" autoplay playsinline muted></video>
-<canvas id="glcanvas"></canvas>
-    <canvas id="canvas" style="display: none;"></canvas>
+    <canvas id="glcanvas"></canvas>
     <canvas id="canvas" style="display:none;"></canvas>
 
-    <!-- Botones de acción -->
-<div id="controls">
-      <button id="capture-button" class="control-button"></button>
-      <button id="record-button" class="control-button red"></button>
-      <button id="filter-button" class="control-button yellow"></button>
+    <div id="controls">
       <button id="capture-button" class="circle white"></button>
       <button id="record-button" class="circle red"></button>
       <button id="filter-button" class="circle yellow"></button>
-</div>
+    </div>
 
-    <!-- Botones de grabación -->
-    <div id="recording-controls">
-      <button id="pause-button" class="small-button">⏸️</button>
-      <button id="stop-button" class="small-button">⏹️</button>
     <div id="recording-controls" style="display:none;">
       <button id="pause-button" class="small gray">⏸️</button>
       <button id="stop-button" class="small gray">⏹️</button>
-</div>
+    </div>
 
-    <!-- Botón pantalla completa -->
-    <button id="fullscreen-button" class="fullscreen-toggle">⛶</button>
     <div id="fullscreen-button">⛶</div>
 
-    <!-- Filtros -->
-    <div id="filters-dropdown" class="filters-dropdown">
     <div id="filters-dropdown">
-<select id="filterSelect">
-<option value="none">Sin filtro</option>
-<option value="grayscale">Gris</option>
-        <option value="invert">Invertido</option>
+      <select id="filterSelect">
+        <option value="none">Sin filtro</option>
+        <option value="grayscale">Gris</option>
         <option value="invert">Invertir</option>
-<option value="sepia">Sepia</option>
-</select>
-</div>
-</div>
+        <option value="sepia">Sepia</option>
+      </select>
+    </div>
+  </div>
 
-  <!-- Galería de imágenes y videos -->
-<div id="gallery"></div>
+  <div id="gallery"></div>
 
-<script src="app.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
