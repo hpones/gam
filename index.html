@@ -2,40 +2,47 @@
 <html lang="es">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Experimental Camera</title>
   <link rel="stylesheet" href="style.css" />
 </head>
 <body>
-  <div id="camera-container">
-    <video id="video" autoplay playsinline muted></video>
+
+  <div class="camera-container">
+    <video id="video" autoplay muted playsinline></video>
     <canvas id="glcanvas"></canvas>
-    <canvas id="canvas" style="display:none;"></canvas>
 
-    <div id="controls">
-      <button id="capture-button" class="circle white"></button>
-      <button id="record-button" class="circle red"></button>
-      <button id="filter-button" class="circle yellow"></button>
+    <!-- Botones principales -->
+    <div class="controls">
+      <button id="photo-btn" class="circle white"></button>
+      <button id="video-btn" class="circle red"></button>
+      <button id="filter-btn" class="circle yellow"></button>
     </div>
 
-    <div id="recording-controls" style="display:none;">
-      <button id="pause-button" class="small gray">⏸️</button>
-      <button id="stop-button" class="small gray">⏹️</button>
+    <!-- Botones durante grabación -->
+    <div class="recording-controls">
+      <button id="pause-btn" class="small-circle gray" style="display: none;">⏸</button>
+      <button id="stop-btn" class="small-circle gray" style="display: none;">⏹</button>
     </div>
 
-    <div id="fullscreen-button">⛶</div>
+    <!-- Botón de pantalla completa -->
+    <button id="fullscreen-btn" class="fullscreen-btn">⛶</button>
 
-    <div id="filters-dropdown">
-      <select id="filterSelect">
-        <option value="none">Sin filtro</option>
-        <option value="grayscale">Gris</option>
-        <option value="invert">Invertir</option>
-        <option value="sepia">Sepia</option>
-      </select>
-    </div>
+    <!-- Filtros -->
+    <select id="filter-select" class="filter-select" style="display: none;">
+      <option value="none">Ninguno</option>
+      <option value="grayscale">Gris</option>
+      <option value="sepia">Sepia</option>
+      <option value="invert">Invertir</option>
+      <option value="blur">Desenfoque</option>
+      <option value="brightness">Brillo</option>
+      <option value="contrast">Contraste</option>
+      <option value="saturate">Saturar</option>
+    </select>
   </div>
 
-  <div id="gallery"></div>
+  <!-- Galería -->
+  <div id="photo-gallery" class="gallery"></div>
 
   <script src="app.js"></script>
 </body>
