@@ -125,3 +125,10 @@ stopBtn.onclick = () => {
   controls.style.display = "flex";
   videoControls.style.display = "none";
 };
+
+video.addEventListener("dblclick", async () => {
+  usingFrontCamera = !usingFrontCamera;
+  if (stream) stream.getTracks().forEach(track => track.stop());
+  await startCamera();
+});
+
