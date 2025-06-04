@@ -89,7 +89,8 @@ function drawVideoFrame() {
         let data = imageData.data;
 
         for (let i = 0; i < data.length; i += 4) {
-          const r = data[i], g = data[i + 1], b = data[i + 2];          const brightness = (r + g + b) / 3;
+          const r = data[i], g = data[i + 1], b = data[i + 2];
+          const brightness = (r + g + b) / 3;
 
           if (selectedFilter === 'eco-pink') {
             if (brightness < 80) {
@@ -97,7 +98,6 @@ function drawVideoFrame() {
               data[i] = Math.min(255, r + 80);
               data[i + 1] = Math.max(0, g - 50);
               data[i + 2] = Math.min(255, b + 100); 
-              
             }
           } else if (selectedFilter === 'weird') {
             if (brightness > 180) {
@@ -223,6 +223,7 @@ function addToGallery(element, type) {
   gallery.prepend(container);
 }
 
+// Aquí está el único agregado que pediste para cambiar cámara con doble clic:
 video.addEventListener('dblclick', () => {
   usingFrontCamera = !usingFrontCamera;
   startCamera();
