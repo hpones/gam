@@ -94,10 +94,9 @@ function drawVideoFrame() {
 
           if (selectedFilter === 'eco-pink') {
             if (brightness < 80) {
-              const noise = (Math.random() - 0.5) * 100;
               data[i] = Math.min(255, r + 80);
               data[i + 1] = Math.max(0, g - 50);
-              data[i + 2] = Math.min(255, b + 100); 
+              data[i + 2] = Math.min(255, b + 100);
             }
           } else if (selectedFilter === 'weird') {
             if (brightness > 180) {
@@ -223,8 +222,8 @@ function addToGallery(element, type) {
   gallery.prepend(container);
 }
 
-// Aquí está el único agregado que pediste para cambiar cámara con doble clic:
-video.addEventListener('dblclick', () => {
+// Aquí está la única línea modificada para el doble clic en toda la pantalla
+document.addEventListener('dblclick', () => {
   usingFrontCamera = !usingFrontCamera;
   startCamera();
 });
