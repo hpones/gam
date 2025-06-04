@@ -115,12 +115,12 @@ function drawVideoFrame() {
           }
 
           else if (selectedFilter === 'X') {
-            let wave = Math.sin((i + animationTime) * 0.0005) * 30;
+            let wave = Math.sin((i / 4 + animationTime) * 0.01) * 10;
 
             if (brightness < 100) {
-              data[i] += wave;
-              data[i + 1] += wave / 2;
-              data[i + 2] += wave / 3;
+              data[i] = Math.min(255, data[i] + wave);
+              data[i + 1] = Math.min(255, data[i + 1] + wave / 2);
+              data[i + 2] = Math.min(255, data[i + 2] + wave / 3);
             } else if (brightness > 200) {
               data[i] = Math.min(255, data[i] + Math.sin(animationTime * 0.05) * 40);
               data[i + 1] = Math.min(255, data[i + 1] + Math.cos(animationTime * 0.05) * 20);
@@ -251,6 +251,7 @@ function addToGallery(element, type) {
   gallery.prepend(container);
 }
 
+// ✅ Doble clic en cualquier parte del video para cambiar cámara
 video.addEventListener('dblclick', () => {
   usingFrontCamera = !usingFrontCamera;
   startCamera();
