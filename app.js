@@ -1,61 +1,53 @@
-const video = document.getElementById("video");
-const canvas = document.getElementById("canvas");
-const photoBtn = document.getElementById("capture-button");
-const videoBtn = document.getElementById("record-button");
-const filterToggle = document.getElementById("filter-button");
-const filterMenu = document.getElementById("filters-dropdown");
-const filterSelect = document.getElementById("filterSelect");
-const gallery = document.getElementById("gallery");
-const fullscreenBtn = document.getElementById("fullscreen-button");
+const captureBtn = document.getElementById("capture-button");
+const recordBtn = document.getElementById("record-button");
+const filterBtn = document.getElementById("filter-button");
 const pauseBtn = document.getElementById("pause-button");
 const stopBtn = document.getElementById("stop-button");
+const fullscreenBtn = document.getElementById("fullscreen-button");
+const filterSelect = document.getElementById("filterSelect");
+const gallery = document.getElementById("gallery");
+const video = document.getElementById("video");
+const canvas = document.getElementById("canvas");
 const controls = document.getElementById("controls");
-const videoControls = document.getElementById("recording-controls");
+const recordingControls = document.getElementById("recording-controls");
 
 let currentFilter = "none";
+let stream;
 let mediaRecorder;
 let chunks = [];
-let currentStream;
 let isPaused = false;
-let videoDevices = [];
-let currentCameraIndex = 0;
-
-async function getVideoDevices() {
-  const devices = await navigator.mediaDevices.enumerateDevices();
-  videoDevices = devices.filter(device => device.kind === 'videoinput');
-}
+let usingFrontCamera = true;
 
 async function startCamera() {
-  if (currentStream) {
-    currentStream.getTracks().forEach(track => track.stop());
-  }
-
-  await getVideoDevices();
-
-  const selectedDeviceId = videoDevices[currentCameraIndex]?.deviceId;
-
   try {
-    currentStream = await navigator.mediaDevices.getUserMedia({
-      video: {
-        deviceId: selectedDeviceId ? { exact: selectedDeviceId } : undefined,
-        width: { ideal: 1280 },
-        height: { ideal: 720 }
-      },
-      audio: true
+    stream = await navigator.mediaDevices.getUserMedia({
+      video: { facingMode: usingFrontCamera ? "user" : "environment" },
+      audio: true,
     });
 
-    video.srcObject = currentStream;
+    video.srcObject = stream;
     video.style.filter = getCssFilter(currentFilter);
   } catch (err) {
     alert("Error al acceder a la cámara: " + err);
   }
 }
 
-startCamera();
+function getCssFilter(name) {
+  switch (name) {
+    case "invert": return "invert(1)";
+    case "grayscale": return "grayscale(1)";
+    case "sepia": return "sepia(1)";
+    case "eco-pink": return "contrast(1.5) hue-rotate(290deg)";
+    case "weird": return "blur(2px) saturate(1.5) hue-rotate(180deg)";
+    case "x": return "blur(1.5px) contrast(1.2) brightness(1.1) hue-rotate(45deg) saturate(1.4)";
+    default: return "none";
+  }
+}
 
-document.addEventListener("dblclick", () => {
-  currentCameraIndex = (currentCameraIndex + 1) % videoDevices.length;
-  startCamera();
+video.addEventListener("dblclick", async () => {
+  usingFrontCamera = !usingFrontCamera;
+  if (stream) stream.getTracks().forEach(track => track.stop());
+  await startCamera();
 });
 
 fullscreenBtn.onclick = () => {
@@ -68,27 +60,12 @@ fullscreenBtn.onclick = () => {
   }
 };
 
-filterToggle.onclick = () => {
-  filterMenu.style.display = filterMenu.style.display === "none" ? "block" : "none";
+filterSelect.onchange = () => {
+  currentFilter = filterSelect.value;
+  video.style.filter = getCssFilter(currentFilter);
 };
 
-filterSelect.addEventListener("change", e => {
-  currentFilter = e.target.value;
-  video.style.filter = getCssFilter(currentFilter);
-});
-
-function getCssFilter(name) {
-  switch (name) {
-    case "invert": return "invert(1)";
-    case "grayscale": return "grayscale(1)";
-    case "sepia": return "sepia(1)";
-    case "eco-pink": return "contrast(1.5) hue-rotate(300deg)";
-    case "weird": return "contrast(2) hue-rotate(90deg)";
-    default: return "none";
-  }
-}
-
-photoBtn.onclick = () => {
+captureBtn.onclick = () => {
   const context = canvas.getContext("2d");
   canvas.width = video.videoWidth;
   canvas.height = video.videoHeight;
@@ -96,13 +73,11 @@ photoBtn.onclick = () => {
   context.drawImage(video, 0, 0, canvas.width, canvas.height);
   const img = document.createElement("img");
   img.src = canvas.toDataURL("image/png");
-  const item = document.createElement("div");
-  item.className = "gallery-item";
-  item.appendChild(img);
-  gallery.appendChild(item);
+  img.className = "gallery-item";
+  gallery.appendChild(img);
 };
 
-videoBtn.onclick = () => {
+recordBtn.onclick = () => {
   if (mediaRecorder && mediaRecorder.state === "recording") return;
 
   const filteredStream = video.captureStream();
@@ -116,15 +91,13 @@ videoBtn.onclick = () => {
     const videoEl = document.createElement("video");
     videoEl.src = url;
     videoEl.controls = true;
-    const item = document.createElement("div");
-    item.className = "gallery-item";
-    item.appendChild(videoEl);
-    gallery.appendChild(item);
+    videoEl.className = "gallery-item";
+    gallery.appendChild(videoEl);
   };
 
   mediaRecorder.start();
   controls.style.display = "none";
-  videoControls.style.display = "flex";
+  recordingControls.style.display = "flex";
 };
 
 pauseBtn.onclick = () => {
@@ -142,5 +115,7 @@ stopBtn.onclick = () => {
   if (!mediaRecorder) return;
   mediaRecorder.stop();
   controls.style.display = "flex";
-  videoControls.style.display = "none";
+  recordingControls.style.display = "none";
 };
+
+startCamera();
