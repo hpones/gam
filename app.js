@@ -79,12 +79,20 @@ filterSelect.addEventListener("change", e => {
 
 function getCssFilter(name) {
   switch (name) {
-    case "invert": return "invert(1)";
-    case "grayscale": return "grayscale(1)";
-    case "sepia": return "sepia(1)";
-    case "eco-pink": return "contrast(1.5) hue-rotate(300deg)";
-    case "weird": return "contrast(2) hue-rotate(90deg)";
-    default: return "none";
+    case "invert": 
+      return "invert(1)";
+    case "grayscale": 
+      return "grayscale(1)";
+    case "sepia": 
+      return "sepia(1)";
+    case "eco-pink": 
+      // Potenciado: contraste más alto y más rotación de tono
+      return "contrast(2) hue-rotate(320deg) saturate(1.3)";
+    case "weird": 
+      // Potenciado: contraste fuerte, rotación más marcada y saturación
+      return "contrast(3) hue-rotate(100deg) saturate(1.5)";
+    default: 
+      return "none";
   }
 }
 
