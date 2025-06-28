@@ -86,8 +86,8 @@ function getCssFilter(name) {
     case "sepia": 
       return "sepia(1)";
     case "eco-pink": 
-      // Potenciado: contraste más alto y más rotación de tono
-      return "contrast(2) hue-rotate(320deg) saturate(1.3)";
+  // Eco Pink mejorado: contraste más fuerte, tonos rosados brillantes y desenfoque suave
+  return "contrast(2.5) hue-rotate(330deg) saturate(1.8) brightness(1.1) blur(1px)";
     case "weird": 
       // Potenciado: contraste fuerte, rotación más marcada y saturación
       return "contrast(3) hue-rotate(100deg) saturate(1.5)";
