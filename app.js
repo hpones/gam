@@ -18,9 +18,13 @@ let mediaRecorder;
 let chunks = [];
 let isRecording = false;
 let isPaused = false;
-let usingFrontCamera = true;
+let usingFrontCamera = true; // Variable para controlar qué cámara se está usando
 let selectedFilter = 'none';
 
+/**
+ * Aplica el filtro seleccionado al contexto del lienzo.
+ * @param {CanvasRenderingContext2D} ctx - El contexto de renderizado 2D del lienzo.
+ */
 function applyFilter(ctx) {
   switch (selectedFilter) {
     case 'grayscale':
@@ -34,22 +38,26 @@ function applyFilter(ctx) {
       break;
     case 'eco-pink':
     case 'weird':
-      ctx.filter = 'none';
+      ctx.filter = 'none'; // Estos filtros se manejan a nivel de píxel
       break;
     default:
       ctx.filter = 'none';
   }
 }
 
+/**
+ * Inicia la transmisión de la cámara.
+ * Detiene cualquier transmisión existente antes de iniciar una nueva.
+ */
 async function startCamera() {
   if (currentStream) {
-    currentStream.getTracks().forEach(track => track.stop());
+    currentStream.getTracks().forEach(track => track.stop()); // Detiene las pistas de la cámara actual
   }
 
   try {
     currentStream = await navigator.mediaDevices.getUserMedia({
       video: {
-        facingMode: usingFrontCamera ? 'user' : 'environment',
+        facingMode: usingFrontCamera ? 'user' : 'environment', // 'user' para frontal, 'environment' para trasera
         width: { ideal: 1280 },
         height: { ideal: 720 }
       },
@@ -62,7 +70,7 @@ async function startCamera() {
       video.play();
       glcanvas.width = video.videoWidth;
       glcanvas.height = video.videoHeight;
-      drawVideoFrame();
+      drawVideoFrame(); // Comienza a dibujar los fotogramas en el lienzo
     };
   } catch (err) {
     console.error('No se pudo acceder a la cámara:', err);
@@ -70,20 +78,26 @@ async function startCamera() {
   }
 }
 
+/**
+ * Dibuja los fotogramas del video en el lienzo con filtros aplicados.
+ * Esto crea el efecto de filtro en tiempo real.
+ */
 function drawVideoFrame() {
   const ctx = glcanvas.getContext('2d');
   function draw() {
     if (video.readyState === video.HAVE_ENOUGH_DATA) {
       glcanvas.width = video.videoWidth;
       glcanvas.height = video.videoHeight;
-      applyFilter(ctx);
+      applyFilter(ctx); // Aplica filtros CSS
       ctx.save();
       if (usingFrontCamera) {
+        // Voltea horizontalmente para la cámara frontal para que no se vea como un espejo
         ctx.translate(glcanvas.width, 0);
         ctx.scale(-1, 1);
       }
       ctx.drawImage(video, 0, 0, glcanvas.width, glcanvas.height);
 
+      // Lógica para filtros de píxeles personalizados
       if (selectedFilter === 'eco-pink' || selectedFilter === 'weird') {
         let imageData = ctx.getImageData(0, 0, glcanvas.width, glcanvas.height);
         let data = imageData.data;
@@ -94,33 +108,34 @@ function drawVideoFrame() {
 
           if (selectedFilter === 'eco-pink') {
             if (brightness < 80) {
-              const noise = (Math.random() - 0.5) * 100;
-              data[i] = Math.min(255, r + 80);
-              data[i + 1] = Math.max(0, g - 50);
-              data[i + 2] = Math.min(255, b + 100);
+              data[i] = Math.min(255, r + 80);      // Aumenta rojo
+              data[i + 1] = Math.max(0, g - 50);    // Disminuye verde
+              data[i + 2] = Math.min(255, b + 100); // Aumenta azul
             }
           } else if (selectedFilter === 'weird') {
-            if (brightness > 180) {
-              data[i] = b;
-              data[i + 1] = r;
-              data[i + 2] = g;
-            } else if (brightness < 100) {
+            if (brightness > 180) { // Colores claros
+              data[i] = b;          // Swaps R and B
+              data[i + 1] = r;      // Swaps G and R
+              data[i + 2] = g;      // Swaps B and G
+            } else if (brightness < 100) { // Colores oscuros
               data[i] = data[i] * Math.random();
               data[i + 1] = data[i + 1] * Math.random();
               data[i + 2] = data[i + 2] * Math.random();
             }
           }
         }
-
         ctx.putImageData(imageData, 0, 0);
       }
-      ctx.restore();
+      ctx.restore(); // Restaura el estado del contexto (deshace el volteo)
     }
-    requestAnimationFrame(draw);
+    requestAnimationFrame(draw); // Solicita el siguiente fotograma
   }
   draw();
 }
 
+// --- Manejadores de Eventos ---
+
+// Capturar foto
 captureBtn.addEventListener('click', () => {
   canvas.width = glcanvas.width;
   canvas.height = glcanvas.height;
@@ -136,10 +151,11 @@ captureBtn.addEventListener('click', () => {
   addToGallery(img, 'img');
 });
 
+// Iniciar grabación
 recordBtn.addEventListener('click', () => {
   if (!isRecording) {
     chunks = [];
-    let stream = glcanvas.captureStream();
+    let stream = glcanvas.captureStream(); // Captura el stream del lienzo con los filtros aplicados
     mediaRecorder = new MediaRecorder(stream);
     mediaRecorder.ondataavailable = e => {
       if (e.data.size > 0) chunks.push(e.data);
@@ -159,17 +175,19 @@ recordBtn.addEventListener('click', () => {
   }
 });
 
+// Pausar/Reanudar grabación
 pauseBtn.addEventListener('click', () => {
   if (isPaused) {
     mediaRecorder.resume();
-    pauseBtn.textContent = '⏸️';
+    pauseBtn.textContent = '⏸️'; // Símbolo de pausa
   } else {
     mediaRecorder.pause();
-    pauseBtn.textContent = '▶️';
+    pauseBtn.textContent = '▶️'; // Símbolo de reproducción
   }
   isPaused = !isPaused;
 });
 
+// Detener grabación
 stopBtn.addEventListener('click', () => {
   mediaRecorder.stop();
   isRecording = false;
@@ -177,16 +195,19 @@ stopBtn.addEventListener('click', () => {
   recordingControls.style.display = 'none';
 });
 
+// Mostrar/Ocultar menú de filtros
 filterBtn.addEventListener('click', () => {
   filtersDropdown.style.display =
     filtersDropdown.style.display === 'block' ? 'none' : 'block';
 });
 
+// Seleccionar filtro
 filterSelect.addEventListener('change', () => {
   selectedFilter = filterSelect.value;
   filtersDropdown.style.display = 'none';
 });
 
+// Modo pantalla completa
 fullscreenBtn.addEventListener('click', () => {
   if (!document.fullscreenElement) {
     document.documentElement.requestFullscreen();
@@ -195,6 +216,11 @@ fullscreenBtn.addEventListener('click', () => {
   }
 });
 
+/**
+ * Agrega un elemento (imagen o video) a la galería.
+ * @param {HTMLImageElement | HTMLVideoElement} element - El elemento a añadir.
+ * @param {'img' | 'video'} type - El tipo de elemento ('img' o 'video').
+ */
 function addToGallery(element, type) {
   let container = document.createElement('div');
   container.className = 'gallery-item';
@@ -220,16 +246,17 @@ function addToGallery(element, type) {
   actions.appendChild(deleteBtn);
   container.appendChild(actions);
 
-  gallery.prepend(container);
+  gallery.prepend(container); // Añade al principio de la galería
 }
 
-// Added double-click event listener to the video element
+// --- Nueva funcionalidad: Doble clic para cambiar de cámara ---
 video.addEventListener('dblclick', () => {
-  // Toggle the camera
+  // Invierte el valor de usingFrontCamera (si es true, se vuelve false; si es false, se vuelve true)
   usingFrontCamera = !usingFrontCamera;
-  // Restart the camera with the new facing mode
+  // Reinicia la cámara con el nuevo modo de orientación (frontal/trasera)
   startCamera();
 });
 
-// Initial camera start
+// --- Inicio de la aplicación ---
+// Inicia la cámara automáticamente cuando la página carga
 startCamera();
