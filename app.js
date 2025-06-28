@@ -203,8 +203,8 @@ function drawVideoFrame() {
             const brightness = (r + g + b) / 3;
 
             // Restablecido a los valores anteriores
-            const shadowThreshold = 100; 
-            const trailBlend = 0.6; 
+            const shadowThreshold = 100; // Un valor más alto para capturar más áreas como "sombra"
+            const trailBlend = 0.6; // Mayor valor = estela más visible y persistente
 
             if (brightness < shadowThreshold) { 
                 // Si es una zona de sombra, mezcla con el color de la estela (previousPixels)
@@ -516,7 +516,7 @@ function addToGallery(element, type) {
   gallery.prepend(container);
 }
 
-// Función para cambiar de cámara al hacer doble clic
+// Función para cambiar de camara con doble click
 video.addEventListener('dblclick', () => {
   usingFrontCamera = !usingFrontCamera;
   startCamera();
