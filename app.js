@@ -27,7 +27,7 @@ function applyFilter(ctx) {
       ctx.filter = 'grayscale(100%)';
       break;
     case 'invert':
-      ctx.filter = 'invert(100%)';
+      ctx.filter = 'invert(100%) solarize(50%)'; // Añadido solarizar al filtro de inversión
       break;
     case 'sepia':
       ctx.filter = 'sepia(100%)';
@@ -92,22 +92,81 @@ function drawVideoFrame() {
           const r = data[i], g = data[i + 1], b = data[i + 2];          const brightness = (r + g + b) / 3;
 
           if (selectedFilter === 'eco-pink') {
-            if (brightness < 80) {
-              const noise = (Math.random() - 0.5) * 100;
-              data[i] = Math.min(255, r + 80);
-              data[i + 1] = Math.max(0, g - 50);
-              data[i + 2] = Math.min(255, b + 100); 
-              
+            if (brightness < 120) { // Ajustado el umbral para más fluidez
+              // Añadir verdes claros en zonas oscuras
+              data[i] = Math.min(255, r + 50 + (Math.sin(i * 0.001 + performance.now() * 0.01) * 30)); // Rojo
+              data[i + 1] = Math.min(255, g + 100 + (Math.cos(i * 0.001 + performance.now() * 0.01) * 30)); // Verde
+              data[i + 2] = Math.min(255, b + 50 + (Math.sin(i * 0.001 + performance.now() * 0.01) * 30)); // Azul
+
+              // Generar distorsión o movimiento en estas zonas
+              const offset = Math.sin(i * 0.005 + performance.now() * 0.02) * 10;
+              const x = (i / 4) % glcanvas.width;
+              const y = Math.floor((i / 4) / glcanvas.width);
+              const newX = x + offset;
+              const newY = y + offset;
+
+              if (newX >= 0 && newX < glcanvas.width && newY >= 0 && newY < glcanvas.height) {
+                const newIndex = (Math.floor(newY) * glcanvas.width + Math.floor(newX)) * 4;
+                if (newIndex >= 0 && newIndex < data.length) {
+                  data[i] = data[newIndex];
+                  data[i + 1] = data[newIndex + 1];
+                  data[i + 2] = data[newIndex + 2];
+                  data[i + 3] = data[newIndex + 3];
+                }
+              }
+
             }
           } else if (selectedFilter === 'weird') {
+            // Paleta de colores fríos y complementarios
             if (brightness > 180) {
-              data[i] = b;
-              data[i + 1] = r;
-              data[i + 2] = g;
+              // Intercambio de colores primarios para un efecto "weird"
+              data[i] = b;     // Rojo <- Azul
+              data[i + 1] = r; // Verde <- Rojo
+              data[i + 2] = g; // Azul <- Verde
             } else if (brightness < 100) {
-              data[i] = data[i] * Math.random();
-              data[i + 1] = data[i + 1] * Math.random();
-              data[i + 2] = data[i + 2] * Math.random();
+              // Difuminar el ruido en áreas oscuras para "distorsión angelical"
+              const blurRadius = 2; // Ajusta el radio de difuminado
+              let avgR = 0, avgG = 0, avgB = 0, count = 0;
+
+              for (let dy = -blurRadius; dy <= blurRadius; dy++) {
+                for (let dx = -blurRadius; dx <= blurRadius; dx++) {
+                  const x = ((i / 4) % glcanvas.width) + dx;
+                  const y = Math.floor((i / 4) / glcanvas.width) + dy;
+
+                  if (x >= 0 && x < glcanvas.width && y >= 0 && y < glcanvas.height) {
+                    const neighborIndex = (y * glcanvas.width + x) * 4;
+                    if (neighborIndex >= 0 && neighborIndex < data.length) {
+                      avgR += data[neighborIndex];
+                      avgG += data[neighborIndex + 1];
+                      avgB += data[neighborIndex + 2];
+                      count++;
+                    }
+                  }
+                }
+              }
+
+              if (count > 0) {
+                data[i] = avgR / count;
+                data[i + 1] = avgG / count;
+                data[i + 2] = avgB / count;
+              }
+
+              // Aplicar un ligero desplazamiento para "distorsión angelical"
+              const displacement = (Math.sin(i * 0.001 + performance.now() * 0.005) * 5);
+              const originalX = (i / 4) % glcanvas.width;
+              const originalY = Math.floor((i / 4) / glcanvas.width);
+              const newX = originalX + displacement;
+              const newY = originalY + displacement;
+
+              if (newX >= 0 && newX < glcanvas.width && newY >= 0 && newY < glcanvas.height) {
+                const newIndex = (Math.floor(newY) * glcanvas.width + Math.floor(newX)) * 4;
+                if (newIndex >= 0 && newIndex < data.length) {
+                  data[i] = data[newIndex];
+                  data[i + 1] = data[newIndex + 1];
+                  data[i + 2] = data[newIndex + 2];
+                  data[i + 3] = data[newIndex + 3];
+                }
+              }
             }
           }
         }
@@ -190,8 +249,14 @@ filterSelect.addEventListener('change', () => {
 fullscreenBtn.addEventListener('click', () => {
   if (!document.fullscreenElement) {
     document.documentElement.requestFullscreen();
+    // Ajustar opacidad de los controles cuando está en pantalla completa
+    controls.style.opacity = '0.2';
+    recordingControls.style.opacity = '0.2';
   } else {
     document.exitFullscreen();
+    // Restaurar opacidad de los controles al salir de pantalla completa
+    controls.style.opacity = '1';
+    recordingControls.style.opacity = '1';
   }
 });
 
