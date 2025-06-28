@@ -11,7 +11,7 @@ let fullscreenBtn = document.getElementById('fullscreen-button');
 let filterBtn = document.getElementById('filter-button');
 let filtersDropdown = document.getElementById('filters-dropdown');
 let gallery = document.getElementById('gallery');
-let controls = document.getElementById('controls');
+let controls = document = document.getElementById('controls');
 let recordingControls = document.getElementById('recording-controls');
 
 let currentStream;
@@ -160,24 +160,9 @@ function drawVideoFrame() {
       ctx.globalAlpha = 1.0;
       bufferCtx.globalAlpha = 1.0; 
 
-      // Dibuja el frame del video en el bufferCanvas SIEMPRE en la orientación correcta (sin espejo)
-      // Este buffer será la fuente para la estela (previous frame)
+      // 1. Dibuja el frame del video en el bufferCanvas SIEMPRE en la orientación correcta (sin espejo)
+      // Este buffer será la fuente para la estela del frame anterior.
       bufferCtx.save();
-      // NO aplicar mirror aquí si queremos que la estela esté en la orientación "real"
-      // Si usingFrontCamera es true, el video ya está invertido por el navegador si 'user' es su default
-      // Sin embargo, si quieres que la estela no esté invertida respecto al movimiento del mundo,
-      // aquí deberías aplicar la transformación inversa a la del glcanvas.
-      // Pero si la 'mirroring' es solo para la vista del usuario, el buffer debe ser el video 'tal cual'
-      // sin espejo, para que el movimiento de la estela coincida con el movimiento real del objeto.
-      // Aquí, simplemente dibuja el video sin transformaciones de espejo para el buffer.
-      // Si la cámara frontal por defecto NO espejea el video en crudo, esto es correcto.
-      // Si la cámara frontal YA espejea el video en crudo, entonces bufferCtx.drawImage(video, ...) ya es espejado.
-      // Para asegurar que la estela NO esté espejada, debemos dibujar el video sin la transformación de espejo
-      // en el bufferCtx, si usingFrontCamera es true.
-
-      // Dibujar el frame de video en el bufferCanvas. 
-      // Si usingFrontCamera es true, queremos que el buffer contenga la imagen real (no espejada)
-      // para que la estela sea coherente con el movimiento del objeto.
       if (usingFrontCamera) {
         bufferCtx.translate(bufferCanvas.width, 0);
         bufferCtx.scale(-1, 1);
@@ -186,7 +171,7 @@ function drawVideoFrame() {
       bufferCtx.restore();
 
 
-      // Lógica principal de dibujo del frame de video en glcanvas (lo que el usuario ve)
+      // 2. Lógica principal de dibujo del frame de video en glcanvas (lo que el usuario ve)
       ctx.clearRect(0, 0, glcanvas.width, glcanvas.height); // Limpiar para el nuevo frame
       
       applyFilter(ctx); // Aplica filtros CSS si corresponde
@@ -219,59 +204,27 @@ function drawVideoFrame() {
 
             // Ajustar el umbral de sombra y la intensidad de la estela
             const shadowThreshold = 100; // Un valor más alto para capturar más áreas como "sombra"
-            const trailBlend = 0.6; // Mayor valor = estela más visible y persistente
+            const trailBlend = 0.3; // REDUCIDO para hacer la estela más LARGA y que se DEMORE más en desaparecer
 
             if (brightness < shadowThreshold) { 
                 // Si es una zona de sombra, mezcla con el color de la estela (previousPixels)
-                // Asegúrate de que los previousPixels NO estén espejados si currentPixels SÍ lo está.
-                // Si ambos están en la misma orientación (por la corrección de bufferCtx), la mezcla será correcta.
-                currentPixels[i] = Math.round(currentPixels[i] * (1 - trailBlend) + previousPixels[i] * trailBlend);
-                currentPixels[i + 1] = Math.round(currentPixels[i + 1] * (1 - trailBlend) + previousPixels[i + 1] * trailBlend);
-                currentPixels[i + 2] = Math.round(currentPixels[i + 2] * (1 - trailBlend) + previousPixels[i + 2] * trailBlend);
+                // Y añade una coloración azulada a la estela
+                let blendedR = Math.round(currentPixels[i] * (1 - trailBlend) + previousPixels[i] * trailBlend);
+                let blendedG = Math.round(currentPixels[i + 1] * (1 - trailBlend) + previousPixels[i + 1] * trailBlend);
+                let blendedB = Math.round(currentPixels[i + 2] * (1 - trailBlend) + previousPixels[i + 2] * trailBlend);
+
+                // Aplicar coloración azulada a la estela en las sombras
+                blendedR = Math.min(255, blendedR * 0.8); // Reduce el rojo
+                blendedG = Math.min(255, blendedG * 0.9); // Reduce ligeramente el verde
+                blendedB = Math.min(255, blendedB * 1.2); // Aumenta el azul (el 1.2 es un multiplicador)
+
+                currentPixels[i] = blendedR;
+                currentPixels[i + 1] = blendedG;
+                currentPixels[i + 2] = blendedB;
             }
         }
         ctx.putImageData(currentFrameData, 0, 0); // Dibuja el resultado combinado en glcanvas
 
-        // ¡IMPORTANTE! Copiar el glcanvas con el efecto aplicado al bufferCanvas para el siguiente frame.
-        // Esto asegura que la estela se acumule.
-        // Pero el bufferCanvas debe mantener la imagen NO espejada para la estela.
-        // La lógica debe ser: el buffer siempre almacena la imagen "real" del mundo.
-        // El glcanvas muestra la imagen "real" (cámara trasera) o "espejada" (cámara frontal).
-        // Para esto, dibujamos la imagen *actual del video* en el buffer, aplicando la transformación
-        // de espejo inversa si es necesario, para que el buffer siempre tenga la imagen "no espejada".
-
-        // Después de dibujar el efecto en glcanvas, necesitamos que el bufferCanvas
-        // tenga el frame actual (del video, no del glcanvas) para la siguiente iteración.
-        // Esto puede ser un poco confuso. La lógica que teníamos antes era:
-        // 1. Dibujar el video en buffer (sin espejo)
-        // 2. Dibujar el video en glcanvas (con espejo si es frontal)
-        // 3. Aplicar el blend con buffer y glcanvas.
-        // Esto crea la estela del frame anterior.
-
-        // Si queremos que la estela sea de la imagen que el usuario ve (con espejo si frontal),
-        // entonces bufferCtx.drawImage(glcanvas, ...) es correcto.
-        // Si queremos que la estela sea del movimiento REAL del objeto (sin espejo),
-        // entonces bufferCtx.drawImage(video, ...) sin la transformación de espejo.
-
-        // Por tu solicitud "la imagen de la sombra (la estela) no se vea invertida (Espejo)",
-        // asumimos que la estela debe seguir el movimiento real, no el espejo.
-        // Por lo tanto, el bufferCtx siempre debe tener la versión no espejada del video.
-        // La estela ya se generó de forma no espejada en el step 1.
-        // La mezcla en el step 4 ya usa `previousPixels` que vienen del `bufferCanvas` (no espejado).
-
-        // No se necesita copiar glcanvas a bufferCanvas aquí si ya lo hicimos al principio del frame
-        // para tener la "imagen anterior no espejada". El `bufferCanvas` es para la estela del pasado.
-        // Lo que debemos hacer es dibujar el video *sin espejo* en el `bufferCanvas` al comienzo del frame.
-        // Y el `glcanvas` recibe la mezcla.
-        
-        // La estela se forma al mezclar el píxel actual con el píxel del buffer (que es el video no espejado del frame anterior).
-        // Al final de este bloque, el `bufferCanvas` debe actualizarse con el video actual (no espejado)
-        // para la siguiente iteración.
-
-        // Esto ya se hace al inicio del loop draw, antes de todas las operaciones de glcanvas.
-        // bufferCtx.drawImage(video, ...) con la corrección de espejo para el buffer.
-        // Esto es lo que alimenta la estela.
-        // Entonces, el `putImageData` de `currentFrameData` es el paso final para este frame.
       } else if (selectedFilter === 'audio-reactive') {
           processAudio(); // Actualiza audioReactIntensity
 
@@ -410,171 +363,4 @@ captureBtn.addEventListener('click', () => {
         } else if (brightness < 80) { // Zonas oscuras
             data[i] = (r * 0.8) + (b * 0.2);
             data[i + 1] = (g * 0.8) + (r * 0.2);
-            data[i + 2] = (b * 0.8) + (g * 0.2);
-        }
-      } else if (selectedFilter === 'invert-bw') {
-        const avg = (r + g + b) / 3;
-        data[i] = 255 - avg;
-        data[i + 1] = 255 - avg;
-        data[i + 2] = 255 - avg;
-      } else if (selectedFilter === 'thermal-camera') {
-        if (brightness < 50) {
-          data[i] = 0;
-          data[i + 1] = 0;
-          data[i + 2] = 255 - (brightness * 5);
-        } else if (brightness < 100) {
-          data[i] = 0;
-          data[i + 1] = (brightness - 50) * 5;
-          data[i + 2] = 255;
-        } else if (brightness < 150) {
-          data[i] = 0;
-          data[i + 1] = 255;
-          data[i + 2] = 255 - ((brightness - 100) * 5);
-        } else if (brightness < 200) {
-          data[i] = (brightness - 150) * 5;
-          data[i + 1] = 255;
-          data[i + 2] = 0;
-        } else {
-          data[i] = 255;
-          data[i + 1] = 255 - ((brightness - 200) * 5);
-          data[i + 2] = 0;
-        }
-      }
-    }
-    ctx.putImageData(imageData, 0, 0);
-  }
-
-  let img = new Image();
-  img.src = canvas.toDataURL('image/png');
-  addToGallery(img, 'img');
-});
-
-recordBtn.addEventListener('click', () => {
-  if (!isRecording) {
-    chunks = [];
-    let streamToRecord = glcanvas.captureStream();
-    mediaRecorder = new MediaRecorder(streamToRecord);
-    mediaRecorder.ondataavailable = e => {
-      if (e.data.size > 0) chunks.push(e.data);
-    };
-    mediaRecorder.onstop = () => {
-      const blob = new Blob(chunks, { type: 'video/webm' });
-      const url = URL.createObjectURL(blob);
-      let vid = document.createElement('video');
-      vid.src = url;
-      vid.controls = true;
-      addToGallery(vid, 'video');
-    };
-    mediaRecorder.start();
-    isRecording = true;
-    controls.style.display = 'none';
-    recordingControls.style.display = 'flex';
-  }
-});
-
-pauseBtn.addEventListener('click', () => {
-  if (isPaused) {
-    mediaRecorder.resume();
-    pauseBtn.textContent = '⏸️';
-  } else {
-    mediaRecorder.pause();
-    pauseBtn.textContent = '▶️';
-  }
-  isPaused = !isPaused;
-});
-
-stopBtn.addEventListener('click', () => {
-  mediaRecorder.stop();
-  isRecording = false;
-  controls.style.display = 'flex';
-  recordingControls.style.display = 'none';
-});
-
-filterBtn.addEventListener('click', () => {
-  if (filtersDropdown.style.display === 'block') {
-    filtersDropdown.style.display = 'none';
-  } else {
-    filtersDropdown.style.display = 'block';
-    filtersDropdown.style.opacity = '0.7';
-  }
-});
-
-filterSelect.addEventListener('change', () => {
-  selectedFilter = filterSelect.value;
-  
-  // Limpiar bufferCanvas y restablecer globalAlpha al cambiar de filtro
-  const bCtx = bufferCanvas.getContext('2d');
-  bCtx.clearRect(0, 0, bufferCanvas.width, bufferCanvas.height);
-  glcanvas.getContext('2d').globalAlpha = 1.0;
-
-  // Lógica para iniciar/detener el procesamiento de audio
-  if (selectedFilter === 'audio-reactive') {
-      setupAudioProcessing();
-  } else {
-      // Detener procesamiento de audio si se cambia a otro filtro
-      if (microphone) {
-          microphone.disconnect();
-          microphone = null;
-      }
-      if (audioContext) {
-          // Cerrar el AudioContext si está corriendo
-          if (audioContext.state === 'running') {
-            audioContext.close();
-          }
-          audioContext = null;
-      }
-  }
-});
-
-fullscreenBtn.addEventListener('click', () => {
-  if (!document.fullscreenElement) {
-    document.documentElement.requestFullscreen();
-    controls.style.opacity = '0.2';
-    recordingControls.style.opacity = '0.2';
-    if (filtersDropdown.style.display === 'block') {
-      filtersDropdown.style.opacity = '0.2';
-    }
-  } else {
-    document.exitFullscreen();
-    controls.style.opacity = '1';
-    recordingControls.style.opacity = '1';
-    if (filtersDropdown.style.display === 'block') {
-      filtersDropdown.style.opacity = '0.7';
-    }
-  }
-});
-
-function addToGallery(element, type) {
-  let container = document.createElement('div');
-  container.className = 'gallery-item';
-  container.appendChild(element);
-
-  let actions = document.createElement('div');
-  actions.className = 'gallery-actions';
-
-  let downloadBtn = document.createElement('button');
-  downloadBtn.textContent = 'Descargar';
-  downloadBtn.onclick = () => {
-    const a = document.createElement('a');
-    a.href = element.src;
-    a.download = type === 'img' ? 'foto.png' : 'video.webm';
-    a.click();
-  };
-
-  let deleteBtn = document.createElement('button');
-  deleteBtn.textContent = 'Eliminar';
-  deleteBtn.onclick = () => container.remove();
-
-  actions.appendChild(downloadBtn);
-  actions.appendChild(deleteBtn);
-  container.appendChild(actions);
-
-  gallery.prepend(container);
-}
-
-video.addEventListener('dblclick', () => {
-  usingFrontCamera = !usingFrontCamera;
-  startCamera();
-});
-
-startCamera();
+            data[i + 2] = (b *
