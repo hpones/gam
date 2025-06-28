@@ -12,6 +12,8 @@ let filtersDropdown = document.getElementById('filters-dropdown');
 let gallery = document.getElementById('gallery');
 let controls = document.getElementById('controls');
 let recordingControls = document.getElementById('recording-controls');
+let invertControls = document.getElementById('invert-controls'); // Nuevo: Referencia al contenedor del slider
+let invertAmountSlider = document.getElementById('invertAmount'); // Nuevo: Referencia al slider
 
 let currentStream;
 let mediaRecorder;
@@ -20,6 +22,7 @@ let isRecording = false;
 let isPaused = false;
 let usingFrontCamera = true;
 let selectedFilter = 'none';
+let currentInvertAmount = 100; // Nuevo: Valor inicial para el slider de inversión
 
 function applyFilter(ctx) {
   switch (selectedFilter) {
@@ -27,7 +30,7 @@ function applyFilter(ctx) {
       ctx.filter = 'grayscale(100%)';
       break;
     case 'invert':
-      ctx.filter = 'invert(100%)'; // Eliminado solarize para asegurar visibilidad
+      ctx.filter = `invert(${currentInvertAmount}%)`; // Usa el valor del slider
       break;
     case 'sepia':
       ctx.filter = 'sepia(100%)';
@@ -85,10 +88,7 @@ function drawVideoFrame() {
       ctx.drawImage(video, 0, 0, glcanvas.width, glcanvas.height);
 
       if (selectedFilter === 'eco-pink' || selectedFilter === 'weird') {
-        // Reducir el área de procesamiento para mejorar la fluidez
-        const processWidth = glcanvas.width; // Se mantiene el ancho completo para no distorsionar demasiado
-        const processHeight = glcanvas.height; // Se mantiene el alto completo
-        let imageData = ctx.getImageData(0, 0, processWidth, processHeight);
+        let imageData = ctx.getImageData(0, 0, glcanvas.width, glcanvas.height);
         let data = imageData.data;
 
         for (let i = 0; i < data.length; i += 4) {
@@ -96,22 +96,18 @@ function drawVideoFrame() {
           const brightness = (r + g + b) / 3;
 
           if (selectedFilter === 'eco-pink') {
-            if (brightness < 100) { // Umbral ligeramente ajustado para balance
-              // Colores más simples para fluidez: verdes/rosas básicos
-              data[i] = Math.min(255, r + 60); // Rojo
-              data[i + 1] = Math.min(255, g + 80); // Verde (más prominente)
-              data[i + 2] = Math.min(255, b + 60); // Azul
+            if (brightness < 100) {
+              data[i] = Math.min(255, r + 60);
+              data[i + 1] = Math.min(255, g + 80);
+              data[i + 2] = Math.min(255, b + 60);
             }
           } else if (selectedFilter === 'weird') {
-            // Paleta de colores fríos y complementarios simplificada
-            if (brightness > 150) { // Umbral ajustado
-              // Intercambio de colores básicos para un efecto de color frío
-              data[i] = b; // Rojo <- Azul
-              data[i + 1] = r; // Verde <- Rojo
-              data[i + 2] = g; // Azul <- Verde
-            } else if (brightness < 80) { // Umbral ajustado
-              // Ligero difuminado y ajuste de color en zonas oscuras (menos intensivo)
-              data[i] = (r * 0.8) + (b * 0.2); // Mezcla para tonos azulados/verdosos
+            if (brightness > 150) {
+              data[i] = b;
+              data[i + 1] = r;
+              data[i + 2] = g;
+            } else if (brightness < 80) {
+              data[i] = (r * 0.8) + (b * 0.2);
               data[i + 1] = (g * 0.8) + (r * 0.2);
               data[i + 2] = (b * 0.8) + (g * 0.2);
             }
@@ -183,26 +179,52 @@ stopBtn.addEventListener('click', () => {
 });
 
 filterBtn.addEventListener('click', () => {
-  filtersDropdown.style.display =
-    filtersDropdown.style.display === 'block' ? 'none' : 'block';
+  // Cuando se abre el dropdown, ajusta la opacidad
+  if (filtersDropdown.style.display === 'block') {
+    filtersDropdown.style.display = 'none';
+  } else {
+    filtersDropdown.style.display = 'block';
+    filtersDropdown.style.opacity = '0.7'; // Opacidad baja para el panel
+  }
 });
 
 filterSelect.addEventListener('change', () => {
   selectedFilter = filterSelect.value;
-  filtersDropdown.style.display = 'none';
+  // Muestra u oculta el slider de inversión según el filtro seleccionado
+  if (selectedFilter === 'invert') {
+    invertControls.style.display = 'block';
+    invertAmountSlider.value = currentInvertAmount; // Restaura el último valor
+  } else {
+    invertControls.style.display = 'none';
+  }
+  // Puedes decidir si cerrar el dropdown al cambiar el filtro
+  // filtersDropdown.style.display = 'none';
+});
+
+// Nuevo: Listener para el slider de inversión
+invertAmountSlider.addEventListener('input', () => {
+  currentInvertAmount = invertAmountSlider.value;
+  // No es necesario llamar a drawVideoFrame() directamente,
+  // requestAnimationFrame ya se encarga de redibujar con el nuevo filtro.
 });
 
 fullscreenBtn.addEventListener('click', () => {
   if (!document.fullscreenElement) {
     document.documentElement.requestFullscreen();
-    // Ajustar opacidad de los controles cuando está en pantalla completa
     controls.style.opacity = '0.2';
     recordingControls.style.opacity = '0.2';
+    // También aplicar opacidad al dropdown si está abierto
+    if (filtersDropdown.style.display === 'block') {
+      filtersDropdown.style.opacity = '0.2';
+    }
   } else {
     document.exitFullscreen();
-    // Restaurar opacidad de los controles al salir de pantalla completa
     controls.style.opacity = '1';
     recordingControls.style.opacity = '1';
+    // Restaurar opacidad del dropdown
+    if (filtersDropdown.style.display === 'block') {
+      filtersDropdown.style.opacity = '0.7'; // Opacidad normal del panel
+    }
   }
 });
 
