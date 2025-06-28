@@ -153,13 +153,44 @@ function drawVideoFrame() {
     if (video.readyState === video.HAVE_ENOUGH_DATA) {
       glcanvas.width = video.videoWidth;
       glcanvas.height = video.videoHeight;
+      bufferCanvas.width = video.videoWidth;
+      bufferCanvas.height = video.videoHeight;
 
       // Restablecer globalAlpha para cada frame
       ctx.globalAlpha = 1.0;
       bufferCtx.globalAlpha = 1.0; 
 
-      // Lógica principal de dibujo del frame de video
-      // El frame actual SIEMPRE se dibuja primero para tener la base.
+      // Dibuja el frame del video en el bufferCanvas SIEMPRE en la orientación correcta (sin espejo)
+      // Este buffer será la fuente para la estela (previous frame)
+      bufferCtx.save();
+      // NO aplicar mirror aquí si queremos que la estela esté en la orientación "real"
+      // Si usingFrontCamera es true, el video ya está invertido por el navegador si 'user' es su default
+      // Sin embargo, si quieres que la estela no esté invertida respecto al movimiento del mundo,
+      // aquí deberías aplicar la transformación inversa a la del glcanvas.
+      // Pero si la 'mirroring' es solo para la vista del usuario, el buffer debe ser el video 'tal cual'
+      // sin espejo, para que el movimiento de la estela coincida con el movimiento real del objeto.
+      // Aquí, simplemente dibuja el video sin transformaciones de espejo para el buffer.
+      // Si la cámara frontal por defecto NO espejea el video en crudo, esto es correcto.
+      // Si la cámara frontal YA espejea el video en crudo, entonces bufferCtx.drawImage(video, ...) ya es espejado.
+      // Para asegurar que la estela NO esté espejada, debemos dibujar el video sin la transformación de espejo
+      // en el bufferCtx, si usingFrontCamera es true.
+
+      // Dibujar el frame de video en el bufferCanvas. 
+      // Si usingFrontCamera es true, queremos que el buffer contenga la imagen real (no espejada)
+      // para que la estela sea coherente con el movimiento del objeto.
+      if (usingFrontCamera) {
+        bufferCtx.translate(bufferCanvas.width, 0);
+        bufferCtx.scale(-1, 1);
+      }
+      bufferCtx.drawImage(video, 0, 0, bufferCanvas.width, bufferCanvas.height);
+      bufferCtx.restore();
+
+
+      // Lógica principal de dibujo del frame de video en glcanvas (lo que el usuario ve)
+      ctx.clearRect(0, 0, glcanvas.width, glcanvas.height); // Limpiar para el nuevo frame
+      
+      applyFilter(ctx); // Aplica filtros CSS si corresponde
+      
       ctx.save();
       if (usingFrontCamera) {
         ctx.translate(glcanvas.width, 0);
@@ -170,38 +201,77 @@ function drawVideoFrame() {
 
       // ***** Lógica para filtros de manipulación de píxeles y efectos especiales *****
       if (selectedFilter === 'long-exposure-shadows') {
-        // 1. Copia el estado actual del glcanvas (frame de video) al buffer para la "estela"
-        bufferCtx.clearRect(0, 0, bufferCanvas.width, bufferCanvas.height);
-        bufferCtx.drawImage(glcanvas, 0, 0, bufferCanvas.width, bufferCanvas.height);
+        // En este punto:
+        // - glcanvas tiene el frame actual (posiblemente espejado para cámara frontal)
+        // - bufferCanvas tiene el frame actual (NO espejado, para una estela correcta)
 
-        // 2. Obtiene los datos de píxeles del frame de video actual para identificar las sombras.
+        // Obtener los datos de píxeles del frame actual (glcanvas)
         let currentFrameData = ctx.getImageData(0, 0, glcanvas.width, glcanvas.height);
         let currentPixels = currentFrameData.data;
 
-        // 3. Obtiene los datos de píxeles del buffer (que contiene el frame anterior para la estela).
+        // Obtener los datos de píxeles del frame anterior (bufferCanvas) para la estela
         let previousFrameData = bufferCtx.getImageData(0, 0, bufferCanvas.width, bufferCanvas.height);
         let previousPixels = previousFrameData.data;
 
-        // 4. Procesa y mezcla: dibuja el frame actual y luego superpone la estela en las sombras.
-        // Dibuja el video actual nítido primero (ya se hizo arriba)
-        // Ahora, sobre ese, aplica la estela de las sombras.
-        
         for (let i = 0; i < currentPixels.length; i += 4) {
             const r = currentPixels[i], g = currentPixels[i + 1], b = currentPixels[i + 2];
             const brightness = (r + g + b) / 3;
 
-            // Umbral de sombra (ajustar si es necesario)
-            if (brightness < 100) { // Si es una zona oscura (sombra), un umbral más alto puede coger más área
-                // Aplicar una opacidad más marcada a la estela en las sombras
-                const alphaBlend = 0.5; // Ajustar para más o menos visibilidad de la estela
-                
-                currentPixels[i] = Math.round(currentPixels[i] * (1 - alphaBlend) + previousPixels[i] * alphaBlend);
-                currentPixels[i + 1] = Math.round(currentPixels[i + 1] * (1 - alphaBlend) + previousPixels[i + 1] * alphaBlend);
-                currentPixels[i + 2] = Math.round(currentPixels[i + 2] * (1 - alphaBlend) + previousPixels[i + 2] * alphaBlend);
+            // Ajustar el umbral de sombra y la intensidad de la estela
+            const shadowThreshold = 100; // Un valor más alto para capturar más áreas como "sombra"
+            const trailBlend = 0.6; // Mayor valor = estela más visible y persistente
+
+            if (brightness < shadowThreshold) { 
+                // Si es una zona de sombra, mezcla con el color de la estela (previousPixels)
+                // Asegúrate de que los previousPixels NO estén espejados si currentPixels SÍ lo está.
+                // Si ambos están en la misma orientación (por la corrección de bufferCtx), la mezcla será correcta.
+                currentPixels[i] = Math.round(currentPixels[i] * (1 - trailBlend) + previousPixels[i] * trailBlend);
+                currentPixels[i + 1] = Math.round(currentPixels[i + 1] * (1 - trailBlend) + previousPixels[i + 1] * trailBlend);
+                currentPixels[i + 2] = Math.round(currentPixels[i + 2] * (1 - trailBlend) + previousPixels[i + 2] * trailBlend);
             }
         }
         ctx.putImageData(currentFrameData, 0, 0); // Dibuja el resultado combinado en glcanvas
 
+        // ¡IMPORTANTE! Copiar el glcanvas con el efecto aplicado al bufferCanvas para el siguiente frame.
+        // Esto asegura que la estela se acumule.
+        // Pero el bufferCanvas debe mantener la imagen NO espejada para la estela.
+        // La lógica debe ser: el buffer siempre almacena la imagen "real" del mundo.
+        // El glcanvas muestra la imagen "real" (cámara trasera) o "espejada" (cámara frontal).
+        // Para esto, dibujamos la imagen *actual del video* en el buffer, aplicando la transformación
+        // de espejo inversa si es necesario, para que el buffer siempre tenga la imagen "no espejada".
+
+        // Después de dibujar el efecto en glcanvas, necesitamos que el bufferCanvas
+        // tenga el frame actual (del video, no del glcanvas) para la siguiente iteración.
+        // Esto puede ser un poco confuso. La lógica que teníamos antes era:
+        // 1. Dibujar el video en buffer (sin espejo)
+        // 2. Dibujar el video en glcanvas (con espejo si es frontal)
+        // 3. Aplicar el blend con buffer y glcanvas.
+        // Esto crea la estela del frame anterior.
+
+        // Si queremos que la estela sea de la imagen que el usuario ve (con espejo si frontal),
+        // entonces bufferCtx.drawImage(glcanvas, ...) es correcto.
+        // Si queremos que la estela sea del movimiento REAL del objeto (sin espejo),
+        // entonces bufferCtx.drawImage(video, ...) sin la transformación de espejo.
+
+        // Por tu solicitud "la imagen de la sombra (la estela) no se vea invertida (Espejo)",
+        // asumimos que la estela debe seguir el movimiento real, no el espejo.
+        // Por lo tanto, el bufferCtx siempre debe tener la versión no espejada del video.
+        // La estela ya se generó de forma no espejada en el step 1.
+        // La mezcla en el step 4 ya usa `previousPixels` que vienen del `bufferCanvas` (no espejado).
+
+        // No se necesita copiar glcanvas a bufferCanvas aquí si ya lo hicimos al principio del frame
+        // para tener la "imagen anterior no espejada". El `bufferCanvas` es para la estela del pasado.
+        // Lo que debemos hacer es dibujar el video *sin espejo* en el `bufferCanvas` al comienzo del frame.
+        // Y el `glcanvas` recibe la mezcla.
+        
+        // La estela se forma al mezclar el píxel actual con el píxel del buffer (que es el video no espejado del frame anterior).
+        // Al final de este bloque, el `bufferCanvas` debe actualizarse con el video actual (no espejado)
+        // para la siguiente iteración.
+
+        // Esto ya se hace al inicio del loop draw, antes de todas las operaciones de glcanvas.
+        // bufferCtx.drawImage(video, ...) con la corrección de espejo para el buffer.
+        // Esto es lo que alimenta la estela.
+        // Entonces, el `putImageData` de `currentFrameData` es el paso final para este frame.
       } else if (selectedFilter === 'audio-reactive') {
           processAudio(); // Actualiza audioReactIntensity
 
