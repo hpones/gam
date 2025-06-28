@@ -11,7 +11,7 @@ let fullscreenBtn = document.getElementById('fullscreen-button');
 let filterBtn = document.getElementById('filter-button');
 let filtersDropdown = document.getElementById('filters-dropdown');
 let gallery = document.getElementById('gallery');
-let controls = document = document.getElementById('controls');
+let controls = document.getElementById('controls');
 let recordingControls = document.getElementById('recording-controls');
 
 let currentStream;
@@ -202,25 +202,16 @@ function drawVideoFrame() {
             const r = currentPixels[i], g = currentPixels[i + 1], b = currentPixels[i + 2];
             const brightness = (r + g + b) / 3;
 
-            // Ajustar el umbral de sombra y la intensidad de la estela
-            const shadowThreshold = 100; // Un valor más alto para capturar más áreas como "sombra"
-            const trailBlend = 0.3; // REDUCIDO para hacer la estela más LARGA y que se DEMORE más en desaparecer
+            // Restablecido a los valores anteriores
+            const shadowThreshold = 100; 
+            const trailBlend = 0.6; 
 
             if (brightness < shadowThreshold) { 
                 // Si es una zona de sombra, mezcla con el color de la estela (previousPixels)
-                // Y añade una coloración azulada a la estela
-                let blendedR = Math.round(currentPixels[i] * (1 - trailBlend) + previousPixels[i] * trailBlend);
-                let blendedG = Math.round(currentPixels[i + 1] * (1 - trailBlend) + previousPixels[i + 1] * trailBlend);
-                let blendedB = Math.round(currentPixels[i + 2] * (1 - trailBlend) + previousPixels[i + 2] * trailBlend);
-
-                // Aplicar coloración azulada a la estela en las sombras
-                blendedR = Math.min(255, blendedR * 0.8); // Reduce el rojo
-                blendedG = Math.min(255, blendedG * 0.9); // Reduce ligeramente el verde
-                blendedB = Math.min(255, blendedB * 1.2); // Aumenta el azul (el 1.2 es un multiplicador)
-
-                currentPixels[i] = blendedR;
-                currentPixels[i + 1] = blendedG;
-                currentPixels[i + 2] = blendedB;
+                // Se eliminó la coloración azulada
+                currentPixels[i] = Math.round(currentPixels[i] * (1 - trailBlend) + previousPixels[i] * trailBlend);
+                currentPixels[i + 1] = Math.round(currentPixels[i + 1] * (1 - trailBlend) + previousPixels[i + 1] * trailBlend);
+                currentPixels[i + 2] = Math.round(currentPixels[i + 2] * (1 - trailBlend) + previousPixels[i + 2] * trailBlend);
             }
         }
         ctx.putImageData(currentFrameData, 0, 0); // Dibuja el resultado combinado en glcanvas
@@ -525,6 +516,7 @@ function addToGallery(element, type) {
   gallery.prepend(container);
 }
 
+// Función para cambiar de cámara al hacer doble clic
 video.addEventListener('dblclick', () => {
   usingFrontCamera = !usingFrontCamera;
   startCamera();
