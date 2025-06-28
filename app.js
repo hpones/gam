@@ -27,7 +27,7 @@ function applyFilter(ctx) {
       ctx.filter = 'grayscale(100%)';
       break;
     case 'invert':
-      ctx.filter = 'invert(100%) solarize(50%)'; // Añadido solarizar al filtro de inversión
+      ctx.filter = 'invert(100%)'; // Eliminado solarize para asegurar visibilidad
       break;
     case 'sepia':
       ctx.filter = 'sepia(100%)';
@@ -65,8 +65,8 @@ async function startCamera() {
       drawVideoFrame();
     };
   } catch (err) {
-    console.error('No se pudo acceder a la cámara:', err);
-    alert('No se pudo acceder a la cámara. Revisa los permisos.');
+      console.error('No se pudo acceder a la cámara:', err);
+      alert('No se pudo acceder a la cámara. Revisa los permisos.');
   }
 }
 
@@ -85,92 +85,38 @@ function drawVideoFrame() {
       ctx.drawImage(video, 0, 0, glcanvas.width, glcanvas.height);
 
       if (selectedFilter === 'eco-pink' || selectedFilter === 'weird') {
-        let imageData = ctx.getImageData(0, 0, glcanvas.width, glcanvas.height);
+        // Reducir el área de procesamiento para mejorar la fluidez
+        const processWidth = glcanvas.width; // Se mantiene el ancho completo para no distorsionar demasiado
+        const processHeight = glcanvas.height; // Se mantiene el alto completo
+        let imageData = ctx.getImageData(0, 0, processWidth, processHeight);
         let data = imageData.data;
 
         for (let i = 0; i < data.length; i += 4) {
-          const r = data[i], g = data[i + 1], b = data[i + 2];          const brightness = (r + g + b) / 3;
+          const r = data[i], g = data[i + 1], b = data[i + 2];
+          const brightness = (r + g + b) / 3;
 
           if (selectedFilter === 'eco-pink') {
-            if (brightness < 120) { // Ajustado el umbral para más fluidez
-              // Añadir verdes claros en zonas oscuras
-              data[i] = Math.min(255, r + 50 + (Math.sin(i * 0.001 + performance.now() * 0.01) * 30)); // Rojo
-              data[i + 1] = Math.min(255, g + 100 + (Math.cos(i * 0.001 + performance.now() * 0.01) * 30)); // Verde
-              data[i + 2] = Math.min(255, b + 50 + (Math.sin(i * 0.001 + performance.now() * 0.01) * 30)); // Azul
-
-              // Generar distorsión o movimiento en estas zonas
-              const offset = Math.sin(i * 0.005 + performance.now() * 0.02) * 10;
-              const x = (i / 4) % glcanvas.width;
-              const y = Math.floor((i / 4) / glcanvas.width);
-              const newX = x + offset;
-              const newY = y + offset;
-
-              if (newX >= 0 && newX < glcanvas.width && newY >= 0 && newY < glcanvas.height) {
-                const newIndex = (Math.floor(newY) * glcanvas.width + Math.floor(newX)) * 4;
-                if (newIndex >= 0 && newIndex < data.length) {
-                  data[i] = data[newIndex];
-                  data[i + 1] = data[newIndex + 1];
-                  data[i + 2] = data[newIndex + 2];
-                  data[i + 3] = data[newIndex + 3];
-                }
-              }
-
+            if (brightness < 100) { // Umbral ligeramente ajustado para balance
+              // Colores más simples para fluidez: verdes/rosas básicos
+              data[i] = Math.min(255, r + 60); // Rojo
+              data[i + 1] = Math.min(255, g + 80); // Verde (más prominente)
+              data[i + 2] = Math.min(255, b + 60); // Azul
             }
           } else if (selectedFilter === 'weird') {
-            // Paleta de colores fríos y complementarios
-            if (brightness > 180) {
-              // Intercambio de colores primarios para un efecto "weird"
-              data[i] = b;     // Rojo <- Azul
+            // Paleta de colores fríos y complementarios simplificada
+            if (brightness > 150) { // Umbral ajustado
+              // Intercambio de colores básicos para un efecto de color frío
+              data[i] = b; // Rojo <- Azul
               data[i + 1] = r; // Verde <- Rojo
               data[i + 2] = g; // Azul <- Verde
-            } else if (brightness < 100) {
-              // Difuminar el ruido en áreas oscuras para "distorsión angelical"
-              const blurRadius = 2; // Ajusta el radio de difuminado
-              let avgR = 0, avgG = 0, avgB = 0, count = 0;
-
-              for (let dy = -blurRadius; dy <= blurRadius; dy++) {
-                for (let dx = -blurRadius; dx <= blurRadius; dx++) {
-                  const x = ((i / 4) % glcanvas.width) + dx;
-                  const y = Math.floor((i / 4) / glcanvas.width) + dy;
-
-                  if (x >= 0 && x < glcanvas.width && y >= 0 && y < glcanvas.height) {
-                    const neighborIndex = (y * glcanvas.width + x) * 4;
-                    if (neighborIndex >= 0 && neighborIndex < data.length) {
-                      avgR += data[neighborIndex];
-                      avgG += data[neighborIndex + 1];
-                      avgB += data[neighborIndex + 2];
-                      count++;
-                    }
-                  }
-                }
-              }
-
-              if (count > 0) {
-                data[i] = avgR / count;
-                data[i + 1] = avgG / count;
-                data[i + 2] = avgB / count;
-              }
-
-              // Aplicar un ligero desplazamiento para "distorsión angelical"
-              const displacement = (Math.sin(i * 0.001 + performance.now() * 0.005) * 5);
-              const originalX = (i / 4) % glcanvas.width;
-              const originalY = Math.floor((i / 4) / glcanvas.width);
-              const newX = originalX + displacement;
-              const newY = originalY + displacement;
-
-              if (newX >= 0 && newX < glcanvas.width && newY >= 0 && newY < glcanvas.height) {
-                const newIndex = (Math.floor(newY) * glcanvas.width + Math.floor(newX)) * 4;
-                if (newIndex >= 0 && newIndex < data.length) {
-                  data[i] = data[newIndex];
-                  data[i + 1] = data[newIndex + 1];
-                  data[i + 2] = data[newIndex + 2];
-                  data[i + 3] = data[newIndex + 3];
-                }
-              }
+            } else if (brightness < 80) { // Umbral ajustado
+              // Ligero difuminado y ajuste de color en zonas oscuras (menos intensivo)
+              data[i] = (r * 0.8) + (b * 0.2); // Mezcla para tonos azulados/verdosos
+              data[i + 1] = (g * 0.8) + (r * 0.2);
+              data[i + 2] = (b * 0.8) + (g * 0.2);
             }
           }
         }
-
         ctx.putImageData(imageData, 0, 0);
       }
       ctx.restore();
