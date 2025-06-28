@@ -85,49 +85,41 @@ function drawVideoFrame() {
       glcanvas.width = video.videoWidth;
       glcanvas.height = video.videoHeight;
 
-      // Aplicar filtros CSS directamente al glcanvas
-      // Si el filtro seleccionado es de manipulación de píxeles o long-exposure, ctx.filter es 'none'
-      applyFilter(ctx);
-
-      ctx.save();
-      if (usingFrontCamera) {
-        ctx.translate(glcanvas.width, 0);
-        ctx.scale(-1, 1);
-      }
-      ctx.drawImage(video, 0, 0, glcanvas.width, glcanvas.height);
-      ctx.restore();
-
-      // ***** Lógica para filtros de manipulación de píxeles y Larga Exposición *****
-      if (selectedFilter === 'eco-pink' || selectedFilter === 'weird' ||
-          selectedFilter === 'invert-bw' || selectedFilter === 'thermal-camera' ||
-          selectedFilter === 'long-exposure') {
+      if (selectedFilter === 'long-exposure') {
+        // Lógica para el efecto de larga exposición
+        // 1. Dibuja el contenido del buffer (el frame anterior con estela) en el glcanvas con opacidad.
+        ctx.globalAlpha = 0.9; // Opacidad de la estela (ajusta para más/menos estela)
+        ctx.drawImage(bufferCanvas, 0, 0, glcanvas.width, glcanvas.height);
         
-        // Si el filtro es de larga exposición, el proceso es diferente
-        if (selectedFilter === 'long-exposure') {
-          // 1. Dibujar el contenido actual del glcanvas en el buffer con opacidad reducida
-          // Esto crea la "estela" del frame anterior
-          bufferCtx.clearRect(0, 0, bufferCanvas.width, bufferCanvas.height); // Limpia antes de dibujar
-          bufferCtx.drawImage(glcanvas, 0, 0, bufferCanvas.width, bufferCanvas.height);
+        // 2. Restaura la opacidad y dibuja el frame de video actual sobre el glcanvas.
+        ctx.globalAlpha = 1.0;
+        ctx.save();
+        if (usingFrontCamera) {
+          ctx.translate(glcanvas.width, 0);
+          ctx.scale(-1, 1);
+        }
+        ctx.drawImage(video, 0, 0, glcanvas.width, glcanvas.height);
+        ctx.restore();
 
-          // 2. Redibujar en el glcanvas. Primero el buffer con opacidad
-          // Esto es lo que crea la persistencia de la imagen anterior
-          ctx.clearRect(0, 0, glcanvas.width, glcanvas.height); // Limpiar el glcanvas
-          ctx.globalAlpha = 0.9; // Opacidad del frame anterior (ajusta para más/menos estela)
-          ctx.drawImage(bufferCanvas, 0, 0, glcanvas.width, glcanvas.height);
-          ctx.globalAlpha = 1.0; // Restaurar opacidad para el frame actual
+        // 3. Copia el estado actual del glcanvas (frame actual + estela) al bufferCanvas para el siguiente frame.
+        bufferCtx.clearRect(0, 0, bufferCanvas.width, bufferCanvas.height);
+        bufferCtx.drawImage(glcanvas, 0, 0, bufferCanvas.width, bufferCanvas.height);
 
-          // 3. Dibujar el frame de video actual sobre el bufferCanvas y luego el glcanvas
-          // Esto es para que el frame actual siempre sea nítido sobre la estela
-          ctx.save();
-          if (usingFrontCamera) {
-              ctx.translate(glcanvas.width, 0);
-              ctx.scale(-1, 1);
-          }
-          // Dibujar el video actual directamente en glcanvas con opacidad completa
-          ctx.drawImage(video, 0, 0, glcanvas.width, glcanvas.height);
-          ctx.restore();
+      } else {
+        // Lógica normal para otros filtros (CSS y manipulación de píxeles)
+        applyFilter(ctx); // Aplica filtros CSS si corresponde
+        ctx.save();
+        if (usingFrontCamera) {
+          ctx.translate(glcanvas.width, 0);
+          ctx.scale(-1, 1);
+        }
+        ctx.drawImage(video, 0, 0, glcanvas.width, glcanvas.height);
+        ctx.restore(); // Restaurar el contexto después de dibujar la imagen (importante para ImageData)
 
-        } else { // Si es cualquier otro filtro de manipulación de píxeles (eco-pink, weird, etc.)
+        // Procesamiento de píxeles para filtros específicos
+        if (selectedFilter === 'eco-pink' || selectedFilter === 'weird' ||
+            selectedFilter === 'invert-bw' || selectedFilter === 'thermal-camera') {
+          
           let imageData = ctx.getImageData(0, 0, glcanvas.width, glcanvas.height);
           let data = imageData.data;
 
@@ -194,7 +186,7 @@ captureBtn.addEventListener('click', () => {
   canvas.height = glcanvas.height;
   let ctx = canvas.getContext('2d');
 
-  // Para la captura, necesitamos dibujar el estado actual del glcanvas (ya con estelas si aplica)
+  // Para la captura, simplemente dibujamos el estado actual del glcanvas (ya con estelas si aplica)
   ctx.drawImage(glcanvas, 0, 0, canvas.width, canvas.height);
 
   // Si es un filtro de manipulación de píxeles (excepto long-exposure, que ya está en glcanvas)
@@ -314,12 +306,10 @@ filterBtn.addEventListener('click', () => {
 filterSelect.addEventListener('change', () => {
   selectedFilter = filterSelect.value;
   // Al cambiar de filtro, para "long-exposure" necesitamos limpiar el bufferCanvas
-  if (selectedFilter === 'long-exposure') {
-      const bCtx = bufferCanvas.getContext('2d');
-      bCtx.clearRect(0, 0, bufferCanvas.width, bufferCanvas.height);
-  }
-  // También, si se vuelve de long-exposure a otro filtro, restablecer globalAlpha
-  glcanvas.getContext('2d').globalAlpha = 1.0;
+  // y reestablecer globalAlpha
+  const bCtx = bufferCanvas.getContext('2d');
+  bCtx.clearRect(0, 0, bufferCanvas.width, bufferCanvas.height);
+  glcanvas.getContext('2d').globalAlpha = 1.0; // Siempre restablecer al cambiar de filtro
 });
 
 fullscreenBtn.addEventListener('click', () => {
