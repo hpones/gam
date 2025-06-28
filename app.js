@@ -19,6 +19,8 @@ let currentStream;
 let isPaused = false;
 let videoDevices = [];
 let currentCameraIndex = 0;
+let animationFrameId;
+
 
 async function getVideoDevices() {
   const devices = await navigator.mediaDevices.enumerateDevices();
@@ -57,6 +59,34 @@ document.addEventListener("dblclick", () => {
   currentCameraIndex = (currentCameraIndex + 1) % videoDevices.length;
   startCamera();
 });
+function startEchoEffect() {
+  const ctx = canvas.getContext("2d");
+  canvas.width = video.videoWidth;
+  canvas.height = video.videoHeight;
+
+  function drawFrame() {
+    // Fondo negro semitransparente para efecto de eco visual
+    ctx.fillStyle = "rgba(0, 0, 0, 0.1)";
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+    // Dibuja el video encima
+    ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+
+    animationFrameId = requestAnimationFrame(drawFrame);
+  }
+
+  drawFrame();
+}
+
+function stopEchoEffect() {
+  if (animationFrameId) {
+    cancelAnimationFrame(animationFrameId);
+    animationFrameId = null;
+  }
+  const ctx = canvas.getContext("2d");
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+}
+
 
 fullscreenBtn.onclick = () => {
   if (!document.fullscreenElement) {
@@ -75,6 +105,13 @@ filterToggle.onclick = () => {
 filterSelect.addEventListener("change", e => {
   currentFilter = e.target.value;
   video.style.filter = getCssFilter(currentFilter);
+
+if (currentFilter === "eco-pink") {
+  startEchoEffect();
+} else {
+  stopEchoEffect();
+}
+
 });
 
 function getCssFilter(name) {
@@ -85,7 +122,7 @@ function getCssFilter(name) {
       return "grayscale(1)";
     case "sepia": 
       return "sepia(1)";
-    case "eco-pink": 
+   case "eco-pink": 
   // Eco Pink mejorado: contraste más fuerte, tonos rosados brillantes y desenfoque suave
   return "contrast(2.5) hue-rotate(330deg) saturate(1.8) brightness(1.1) blur(1px)";
     case "weird": 
