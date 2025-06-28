@@ -1,6 +1,7 @@
 let video = document.getElementById('video');
 let glcanvas = document.getElementById('glcanvas');
 let canvas = document.getElementById('canvas');
+let bufferCanvas = document.getElementById('bufferCanvas'); // Nuevo: Referencia al buffer canvas
 let filterSelect = document.getElementById('filterSelect');
 let captureBtn = document.getElementById('capture-button');
 let recordBtn = document.getElementById('record-button');
@@ -22,16 +23,17 @@ let usingFrontCamera = true;
 let selectedFilter = 'none';
 
 function applyFilter(ctx) {
-  // Los filtros de manipulación de píxeles no usan ctx.filter
+  // Los filtros de manipulación de píxeles y 'long-exposure' no usan ctx.filter
   if (selectedFilter === 'eco-pink' || selectedFilter === 'weird' ||
-      selectedFilter === 'invert-bw' || selectedFilter === 'thermal-camera') {
+      selectedFilter === 'invert-bw' || selectedFilter === 'thermal-camera' ||
+      selectedFilter === 'long-exposure') {
     ctx.filter = 'none';
   } else {
     switch (selectedFilter) {
       case 'grayscale':
         ctx.filter = 'grayscale(100%)';
         break;
-      case 'invert': // Vuelve a ser solo invert(100%) sin slider
+      case 'invert':
         ctx.filter = 'invert(100%)';
         break;
       case 'sepia':
@@ -64,6 +66,8 @@ async function startCamera() {
       video.play();
       glcanvas.width = video.videoWidth;
       glcanvas.height = video.videoHeight;
+      bufferCanvas.width = video.videoWidth; // Ajustar tamaño del buffer canvas
+      bufferCanvas.height = video.videoHeight; // Ajustar tamaño del buffer canvas
       drawVideoFrame();
     };
   } catch (err) {
@@ -74,83 +78,110 @@ async function startCamera() {
 
 function drawVideoFrame() {
   const ctx = glcanvas.getContext('2d');
+  const bufferCtx = bufferCanvas.getContext('2d'); // Nuevo: Contexto del buffer canvas
+
   function draw() {
     if (video.readyState === video.HAVE_ENOUGH_DATA) {
       glcanvas.width = video.videoWidth;
       glcanvas.height = video.videoHeight;
 
-      // Aplicar ctx.filter si no es un filtro de manipulación de píxeles
-      // Se hace antes del drawImage y el save/restore para que los efectos de CSS se apliquen
-      // y luego podamos manipular los píxeles resultantes si es necesario.
+      // Aplicar filtros CSS directamente al glcanvas
+      // Si el filtro seleccionado es de manipulación de píxeles o long-exposure, ctx.filter es 'none'
       applyFilter(ctx);
+
       ctx.save();
       if (usingFrontCamera) {
         ctx.translate(glcanvas.width, 0);
         ctx.scale(-1, 1);
       }
       ctx.drawImage(video, 0, 0, glcanvas.width, glcanvas.height);
-      ctx.restore(); // Restaurar el contexto después de dibujar la imagen (importante para ImageData)
+      ctx.restore();
 
-      // Procesamiento de píxeles para filtros específicos
+      // ***** Lógica para filtros de manipulación de píxeles y Larga Exposición *****
       if (selectedFilter === 'eco-pink' || selectedFilter === 'weird' ||
-          selectedFilter === 'invert-bw' || selectedFilter === 'thermal-camera') {
+          selectedFilter === 'invert-bw' || selectedFilter === 'thermal-camera' ||
+          selectedFilter === 'long-exposure') {
         
-        let imageData = ctx.getImageData(0, 0, glcanvas.width, glcanvas.height);
-        let data = imageData.data;
+        // Si el filtro es de larga exposición, el proceso es diferente
+        if (selectedFilter === 'long-exposure') {
+          // 1. Dibujar el contenido actual del glcanvas en el buffer con opacidad reducida
+          // Esto crea la "estela" del frame anterior
+          bufferCtx.clearRect(0, 0, bufferCanvas.width, bufferCanvas.height); // Limpia antes de dibujar
+          bufferCtx.drawImage(glcanvas, 0, 0, bufferCanvas.width, bufferCanvas.height);
 
-        for (let i = 0; i < data.length; i += 4) {
-          const r = data[i], g = data[i + 1], b = data[i + 2];
-          const brightness = (r + g + b) / 3;
+          // 2. Redibujar en el glcanvas. Primero el buffer con opacidad
+          // Esto es lo que crea la persistencia de la imagen anterior
+          ctx.clearRect(0, 0, glcanvas.width, glcanvas.height); // Limpiar el glcanvas
+          ctx.globalAlpha = 0.9; // Opacidad del frame anterior (ajusta para más/menos estela)
+          ctx.drawImage(bufferCanvas, 0, 0, glcanvas.width, glcanvas.height);
+          ctx.globalAlpha = 1.0; // Restaurar opacidad para el frame actual
 
-          if (selectedFilter === 'eco-pink') {
-            if (brightness < 100) {
-              data[i] = Math.min(255, r + 60);
-              data[i + 1] = Math.min(255, g + 80);
-              data[i + 2] = Math.min(255, b + 60);
-            }
-          } else if (selectedFilter === 'weird') {
-            if (brightness > 150) {
-              data[i] = b;
-              data[i + 1] = r;
-              data[i + 2] = g;
-            } else if (brightness < 80) {
-              data[i] = (r * 0.8) + (b * 0.2);
-              data[i + 1] = (g * 0.8) + (r * 0.2);
-              data[i + 2] = (b * 0.8) + (g * 0.2);
-            }
-          } else if (selectedFilter === 'invert-bw') {
-            // Negativo en blanco y negro
-            const avg = (r + g + b) / 3; // Calcula el promedio para convertir a escala de grises
-            data[i] = 255 - avg;     // Invierte el valor de gris para Rojo
-            data[i + 1] = 255 - avg; // Invierte el valor de gris para Verde
-            data[i + 2] = 255 - avg; // Invierte el valor de gris para Azul
-          } else if (selectedFilter === 'thermal-camera') {
-            // Simulación de cámara térmica
-            // Mapping de brillo a colores (azul -> verde -> amarillo -> rojo)
-            if (brightness < 50) { // Muy frío - Azul profundo
-              data[i] = 0;
-              data[i + 1] = 0;
-              data[i + 2] = 255 - (brightness * 5); // Más azul cuanto más oscuro
-            } else if (brightness < 100) { // Frío - Azul a cian
-              data[i] = 0;
-              data[i + 1] = (brightness - 50) * 5; // Añade verde
-              data[i + 2] = 255;
-            } else if (brightness < 150) { // Templado - Cian a verde
-              data[i] = 0;
-              data[i + 1] = 255;
-              data[i + 2] = 255 - ((brightness - 100) * 5); // Quita azul
-            } else if (brightness < 200) { // Cálido - Verde a amarillo
-              data[i] = (brightness - 150) * 5; // Añade rojo
-              data[i + 1] = 255;
-              data[i + 2] = 0;
-            } else { // Muy cálido - Amarillo a rojo
-              data[i] = 255;
-              data[i + 1] = 255 - ((brightness - 200) * 5); // Quita verde
-              data[i + 2] = 0;
+          // 3. Dibujar el frame de video actual sobre el bufferCanvas y luego el glcanvas
+          // Esto es para que el frame actual siempre sea nítido sobre la estela
+          ctx.save();
+          if (usingFrontCamera) {
+              ctx.translate(glcanvas.width, 0);
+              ctx.scale(-1, 1);
+          }
+          // Dibujar el video actual directamente en glcanvas con opacidad completa
+          ctx.drawImage(video, 0, 0, glcanvas.width, glcanvas.height);
+          ctx.restore();
+
+        } else { // Si es cualquier otro filtro de manipulación de píxeles (eco-pink, weird, etc.)
+          let imageData = ctx.getImageData(0, 0, glcanvas.width, glcanvas.height);
+          let data = imageData.data;
+
+          for (let i = 0; i < data.length; i += 4) {
+            const r = data[i], g = data[i + 1], b = data[i + 2];
+            const brightness = (r + g + b) / 3;
+
+            if (selectedFilter === 'eco-pink') {
+              if (brightness < 100) {
+                data[i] = Math.min(255, r + 60);
+                data[i + 1] = Math.min(255, g + 80);
+                data[i + 2] = Math.min(255, b + 60);
+              }
+            } else if (selectedFilter === 'weird') {
+              if (brightness > 150) {
+                data[i] = b;
+                data[i + 1] = r;
+                data[i + 2] = g;
+              } else if (brightness < 80) {
+                data[i] = (r * 0.8) + (b * 0.2);
+                data[i + 1] = (g * 0.8) + (r * 0.2);
+                data[i + 2] = (b * 0.8) + (g * 0.2);
+              }
+            } else if (selectedFilter === 'invert-bw') {
+              const avg = (r + g + b) / 3;
+              data[i] = 255 - avg;
+              data[i + 1] = 255 - avg;
+              data[i + 2] = 255 - avg;
+            } else if (selectedFilter === 'thermal-camera') {
+              if (brightness < 50) {
+                data[i] = 0;
+                data[i + 1] = 0;
+                data[i + 2] = 255 - (brightness * 5);
+              } else if (brightness < 100) {
+                data[i] = 0;
+                data[i + 1] = (brightness - 50) * 5;
+                data[i + 2] = 255;
+              } else if (brightness < 150) {
+                data[i] = 0;
+                data[i + 1] = 255;
+                data[i + 2] = 255 - ((brightness - 100) * 5);
+              } else if (brightness < 200) {
+                data[i] = (brightness - 150) * 5;
+                data[i + 1] = 255;
+                data[i + 2] = 0;
+              } else {
+                data[i] = 255;
+                data[i + 1] = 255 - ((brightness - 200) * 5);
+                data[i + 2] = 0;
+              }
             }
           }
+          ctx.putImageData(imageData, 0, 0);
         }
-        ctx.putImageData(imageData, 0, 0);
       }
     }
     requestAnimationFrame(draw);
@@ -163,17 +194,11 @@ captureBtn.addEventListener('click', () => {
   canvas.height = glcanvas.height;
   let ctx = canvas.getContext('2d');
 
-  // Asegurarse de que el filtro se aplique correctamente para la captura
-  applyFilter(ctx);
-  ctx.save();
-  if (usingFrontCamera) {
-    ctx.translate(canvas.width, 0);
-    ctx.scale(-1, 1);
-  }
-  ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-  ctx.restore();
+  // Para la captura, necesitamos dibujar el estado actual del glcanvas (ya con estelas si aplica)
+  ctx.drawImage(glcanvas, 0, 0, canvas.width, canvas.height);
 
-  // Si es un filtro de manipulación de píxeles, re-aplicar aquí para la captura
+  // Si es un filtro de manipulación de píxeles (excepto long-exposure, que ya está en glcanvas)
+  // debemos aplicar la lógica para la imagen capturada.
   if (selectedFilter === 'eco-pink' || selectedFilter === 'weird' ||
       selectedFilter === 'invert-bw' || selectedFilter === 'thermal-camera') {
     let imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
@@ -239,7 +264,6 @@ captureBtn.addEventListener('click', () => {
 recordBtn.addEventListener('click', () => {
   if (!isRecording) {
     chunks = [];
-    // Para grabar los filtros de manipulación de píxeles, el stream debe capturar el canvas
     let streamToRecord = glcanvas.captureStream();
     mediaRecorder = new MediaRecorder(streamToRecord);
     mediaRecorder.ondataavailable = e => {
@@ -289,8 +313,13 @@ filterBtn.addEventListener('click', () => {
 
 filterSelect.addEventListener('change', () => {
   selectedFilter = filterSelect.value;
-  // Ya no hay slider, así que no se necesita lógica para ocultar/mostrar invertControls
-  // filtersDropdown.style.display = 'none'; // Puedes decidir si quieres que se cierre automáticamente
+  // Al cambiar de filtro, para "long-exposure" necesitamos limpiar el bufferCanvas
+  if (selectedFilter === 'long-exposure') {
+      const bCtx = bufferCanvas.getContext('2d');
+      bCtx.clearRect(0, 0, bufferCanvas.width, bufferCanvas.height);
+  }
+  // También, si se vuelve de long-exposure a otro filtro, restablecer globalAlpha
+  glcanvas.getContext('2d').globalAlpha = 1.0;
 });
 
 fullscreenBtn.addEventListener('click', () => {
