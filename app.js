@@ -28,7 +28,7 @@ let analyser;
 let microphone;
 let dataArray;
 let bufferLength;
-let audioReactThreshold = 100; // Umbral de volumen para activar el efecto (0-255)
+let audioReactThreshold = 60; // Umbral de volumen más bajo para activar el efecto (0-255)
 let audioReactIntensity = 0; // Intensidad actual basada en el volumen
 
 function applyFilter(ctx) {
@@ -97,22 +97,25 @@ async function startCamera() {
 
 // Función para inicializar el procesamiento de audio
 async function setupAudioProcessing() {
-    if (audioContext) return; // Ya inicializado
+    if (audioContext && audioContext.state === 'running') {
+        console.log("Audio processing already running.");
+        return; // Ya inicializado y corriendo
+    }
 
     try {
         audioContext = new (window.AudioContext || window.webkitAudioContext)();
         analyser = audioContext.createAnalyser();
         microphone = audioContext.createMediaStreamSource(currentStream);
         
-        // Conectar el micrófono al analizador y luego al destino del audio (para que el usuario escuche)
-        // Opcional: no conectar al destino si no quieres escuchar el micrófono directamente
+        // Conectar el micrófono al analizador. NO conectar al audioContext.destination
+        // para evitar que el usuario escuche su propio micrófono.
         microphone.connect(analyser);
-        analyser.connect(audioContext.destination); 
+        // analyser.connect(audioContext.destination); // <-- COMENTADO para silenciar el microfono
 
-        analyser.fftSize = 256; // Tamaño del FFT, cuanto más grande, más detalle, más lento. 256 o 512 es buen equilibrio.
+        analyser.fftSize = 256; // Tamaño del FFT
         bufferLength = analyser.frequencyBinCount; // La mitad de fftSize
         dataArray = new Uint8Array(bufferLength); // Array para almacenar los datos de frecuencia
-        console.log("Audio processing initialized.");
+        console.log("Audio processing initialized and muted.");
     } catch (err) {
         console.error('Error al configurar el procesamiento de audio:', err);
         alert('No se pudo configurar el procesamiento de audio. ¿Permisos de micrófono?');
@@ -132,6 +135,7 @@ function processAudio() {
     let average = sum / bufferLength;
 
     // Escala la intensidad en base al promedio de volumen
+    // Se puede ajustar la curva de respuesta aquí para que el efecto sea más o menos sensible
     if (average > audioReactThreshold) {
         audioReactIntensity = (average - audioReactThreshold) / (255 - audioReactThreshold);
         audioReactIntensity = Math.min(1, Math.max(0, audioReactIntensity)); // Asegurar entre 0 y 1
@@ -152,9 +156,10 @@ function drawVideoFrame() {
 
       // Restablecer globalAlpha para cada frame
       ctx.globalAlpha = 1.0;
-      bufferCtx.globalAlpha = 1.0; // Asegurarse de que el buffer también esté en 1.0 por defecto
+      bufferCtx.globalAlpha = 1.0; 
 
       // Lógica principal de dibujo del frame de video
+      // El frame actual SIEMPRE se dibuja primero para tener la base.
       ctx.save();
       if (usingFrontCamera) {
         ctx.translate(glcanvas.width, 0);
@@ -165,38 +170,34 @@ function drawVideoFrame() {
 
       // ***** Lógica para filtros de manipulación de píxeles y efectos especiales *****
       if (selectedFilter === 'long-exposure-shadows') {
-        // 1. Dibuja el contenido actual del glcanvas en el buffer.
+        // 1. Copia el estado actual del glcanvas (frame de video) al buffer para la "estela"
         bufferCtx.clearRect(0, 0, bufferCanvas.width, bufferCanvas.height);
         bufferCtx.drawImage(glcanvas, 0, 0, bufferCanvas.width, bufferCanvas.height);
 
-        // 2. Limpia el glcanvas.
-        ctx.clearRect(0, 0, glcanvas.width, glcanvas.height);
-
-        // 3. Dibuja el buffer (frame anterior) con opacidad reducida.
-        ctx.globalAlpha = 0.9; // Opacidad de la estela
-        ctx.drawImage(bufferCanvas, 0, 0, glcanvas.width, glcanvas.height);
-        ctx.globalAlpha = 1.0; // Restaurar para el frame actual
-
-        // 4. Obtiene los datos de píxeles del frame de video actual para identificar las sombras.
+        // 2. Obtiene los datos de píxeles del frame de video actual para identificar las sombras.
         let currentFrameData = ctx.getImageData(0, 0, glcanvas.width, glcanvas.height);
         let currentPixels = currentFrameData.data;
 
-        // 5. Obtiene los datos de píxeles del buffer (estela de frames anteriores).
+        // 3. Obtiene los datos de píxeles del buffer (que contiene el frame anterior para la estela).
         let previousFrameData = bufferCtx.getImageData(0, 0, bufferCanvas.width, bufferCanvas.height);
         let previousPixels = previousFrameData.data;
 
-        // 6. Combina los píxeles: si es sombra en el frame actual, usa el píxel del buffer (estela).
+        // 4. Procesa y mezcla: dibuja el frame actual y luego superpone la estela en las sombras.
+        // Dibuja el video actual nítido primero (ya se hizo arriba)
+        // Ahora, sobre ese, aplica la estela de las sombras.
+        
         for (let i = 0; i < currentPixels.length; i += 4) {
             const r = currentPixels[i], g = currentPixels[i + 1], b = currentPixels[i + 2];
             const brightness = (r + g + b) / 3;
 
             // Umbral de sombra (ajustar si es necesario)
-            if (brightness < 80) { // Si es una zona oscura (sombra)
-                // Mantener el píxel de la estela
-                currentPixels[i] = previousPixels[i];
-                currentPixels[i + 1] = previousPixels[i + 1];
-                currentPixels[i + 2] = previousPixels[i + 2];
-                // currentPixels[i + 3] = previousPixels[i + 3]; // Mantener el alfa del anterior si se desea
+            if (brightness < 100) { // Si es una zona oscura (sombra), un umbral más alto puede coger más área
+                // Aplicar una opacidad más marcada a la estela en las sombras
+                const alphaBlend = 0.5; // Ajustar para más o menos visibilidad de la estela
+                
+                currentPixels[i] = Math.round(currentPixels[i] * (1 - alphaBlend) + previousPixels[i] * alphaBlend);
+                currentPixels[i + 1] = Math.round(currentPixels[i + 1] * (1 - alphaBlend) + previousPixels[i + 1] * alphaBlend);
+                currentPixels[i + 2] = Math.round(currentPixels[i + 2] * (1 - alphaBlend) + previousPixels[i + 2] * alphaBlend);
             }
         }
         ctx.putImageData(currentFrameData, 0, 0); // Dibuja el resultado combinado en glcanvas
@@ -212,19 +213,19 @@ function drawVideoFrame() {
               const brightness = (r + g + b) / 3;
 
               // Aplicar efecto solo en zonas oscuras y si hay sonido suficiente
-              if (brightness < 80 && audioReactIntensity > 0) { // Umbral de oscuridad ajustable
+              if (brightness < 120 && audioReactIntensity > 0) { // Umbral de oscuridad ajustable
                   const effectAmount = audioReactIntensity * 255; // Escala la intensidad a 0-255
 
-                  // Colores brillantes: mezcla entre verde y rojo dependiendo de la intensidad o un patrón
-                  // Para un efecto simple, hagamos que las sombras parpadeen entre verde y rojo
-                  if (Math.random() < 0.5) { // Aleatorio para un efecto "chispeante"
-                      data[i] = Math.min(255, r + effectAmount);     // Más rojo
-                      data[i + 1] = Math.min(255, g + effectAmount * 0.2); // Poco verde
-                      data[i + 2] = Math.min(255, b + effectAmount * 0.2); // Poco azul
+                  // Colores brillantes: mezcla entre verde y rojo
+                  // Hacemos que sea más aleatorio o que alterne rápidamente
+                  if (Math.random() < 0.5) { // Para un efecto parpadeante entre los dos colores
+                      data[i] = Math.min(255, r + effectAmount * 0.9);     // Rojo dominante
+                      data[i + 1] = Math.min(255, g + effectAmount * 0.1); // Poco verde
+                      data[i + 2] = Math.min(255, b + effectAmount * 0.1); // Poco azul
                   } else {
-                      data[i] = Math.min(255, r + effectAmount * 0.2); // Poco rojo
-                      data[i + 1] = Math.min(255, g + effectAmount);     // Más verde
-                      data[i + 2] = Math.min(255, b + effectAmount * 0.2); // Poco azul
+                      data[i] = Math.min(255, r + effectAmount * 0.1); // Poco rojo
+                      data[i + 1] = Math.min(255, g + effectAmount * 0.9);     // Verde dominante
+                      data[i + 2] = Math.min(255, b + effectAmount * 0.1); // Poco azul
                   }
               }
           }
@@ -233,7 +234,6 @@ function drawVideoFrame() {
       } else if (selectedFilter === 'eco-pink' || selectedFilter === 'weird' ||
           selectedFilter === 'invert-bw' || selectedFilter === 'thermal-camera') {
         
-        // Estos filtros ya usan la imagen inicial dibujada en el glcanvas.
         let imageData = ctx.getImageData(0, 0, glcanvas.width, glcanvas.height);
         let data = imageData.data;
 
@@ -248,11 +248,15 @@ function drawVideoFrame() {
               data[i + 2] = Math.min(255, b + 60);
             }
           } else if (selectedFilter === 'weird') {
-            if (brightness > 150) {
+            if (brightness > 150) { // Zonas brillantes (verde más estallado)
               data[i] = b;
-              data[i + 1] = r;
+              data[i + 1] = Math.min(255, g + 100); // Aumentar aún más el verde
               data[i + 2] = g;
-            } else if (brightness < 80) {
+            } else if (brightness > 80 && brightness <= 150) { // Zonas medias (nuevo rojo)
+              data[i] = Math.min(255, r + 100); // Añadir rojo
+              data[i + 1] = g;
+              data[i + 2] = b;
+            } else if (brightness < 80) { // Zonas oscuras
               data[i] = (r * 0.8) + (b * 0.2);
               data[i + 1] = (g * 0.8) + (r * 0.2);
               data[i + 2] = (b * 0.8) + (g * 0.2);
@@ -325,14 +329,18 @@ captureBtn.addEventListener('click', () => {
           data[i + 2] = Math.min(255, b + 60);
         }
       } else if (selectedFilter === 'weird') {
-        if (brightness > 150) {
-          data[i] = b;
-          data[i + 1] = r;
-          data[i + 2] = g;
-        } else if (brightness < 80) {
-          data[i] = (r * 0.8) + (b * 0.2);
-          data[i + 1] = (g * 0.8) + (r * 0.2);
-          data[i + 2] = (b * 0.8) + (g * 0.2);
+        if (brightness > 150) { // Zonas brillantes (verde más estallado)
+            data[i] = b;
+            data[i + 1] = Math.min(255, g + 100); // Aumentar aún más el verde
+            data[i + 2] = g;
+        } else if (brightness > 80 && brightness <= 150) { // Zonas medias (nuevo rojo)
+            data[i] = Math.min(255, r + 100); // Añadir rojo
+            data[i + 1] = g;
+            data[i + 2] = b;
+        } else if (brightness < 80) { // Zonas oscuras
+            data[i] = (r * 0.8) + (b * 0.2);
+            data[i + 1] = (g * 0.8) + (r * 0.2);
+            data[i + 2] = (b * 0.8) + (g * 0.2);
         }
       } else if (selectedFilter === 'invert-bw') {
         const avg = (r + g + b) / 3;
@@ -439,7 +447,10 @@ filterSelect.addEventListener('change', () => {
           microphone = null;
       }
       if (audioContext) {
-          audioContext.close();
+          // Cerrar el AudioContext si está corriendo
+          if (audioContext.state === 'running') {
+            audioContext.close();
+          }
           audioContext = null;
       }
   }
