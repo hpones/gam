@@ -38,6 +38,12 @@ async function startCamera() {
 
 startCamera();
 
+video.addEventListener("dblclick", async () => {
+  usingFrontCamera = !usingFrontCamera;
+  if (stream) stream.getTracks().forEach(track => track.stop());
+  await startCamera();
+});
+
 fullscreenBtn.onclick = () => {
   if (!document.fullscreenElement) {
     document.documentElement.requestFullscreen();
@@ -119,10 +125,3 @@ stopBtn.onclick = () => {
   controls.style.display = "flex";
   videoControls.style.display = "none";
 };
-
-// ✅ Agregado: cambiar cámara al hacer doble clic en el video
-video.addEventListener("dblclick", async () => {
-  usingFrontCamera = !usingFrontCamera;
-  if (stream) stream.getTracks().forEach(track => track.stop());
-  await startCamera();
-});

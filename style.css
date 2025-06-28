@@ -81,7 +81,7 @@ video, #glcanvas {
   bottom: 80px;
   left: 50%;
   transform: translateX(-50%);
-  display: block;
+  display: none;
   background: rgba(255,255,255,0.9);
   padding: 5px;
   border-radius: 5px;
@@ -98,26 +98,24 @@ video, #glcanvas {
 }
 
 .gallery-item {
+  position: relative;
+}
+
+.gallery-item video,
+.gallery-item img {
   max-width: 150px;
   border: 2px solid white;
   border-radius: 5px;
 }
-#camera-container {
-  position: relative;
+
+.gallery-actions {
+  display: flex;
+  justify-content: space-between;
+  margin-top: 4px;
 }
 
-#video {
-  position: absolute;
-  top: 0;
-  left: 0;
-  z-index: 1;
+.gallery-actions button {
+  font-size: 12px;
+  padding: 2px 6px;
+  cursor: pointer;
 }
-
-#canvas {
-  position: absolute;
-  top: 0;
-  left: 0;
-  z-index: 2;
-  pointer-events: none;
-}
-
