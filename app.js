@@ -89,15 +89,15 @@ function drawVideoFrame() {
         let data = imageData.data;
 
         for (let i = 0; i < data.length; i += 4) {
-          const r = data[i], g = data[i + 1], b = data[i + 2];          const brightness = (r + g + b) / 3;
+          const r = data[i], g = data[i + 1], b = data[i + 2];
+          const brightness = (r + g + b) / 3;
 
           if (selectedFilter === 'eco-pink') {
             if (brightness < 80) {
               const noise = (Math.random() - 0.5) * 100;
               data[i] = Math.min(255, r + 80);
               data[i + 1] = Math.max(0, g - 50);
-              data[i + 2] = Math.min(255, b + 100); 
-              
+              data[i + 2] = Math.min(255, b + 100);
             }
           } else if (selectedFilter === 'weird') {
             if (brightness > 180) {
@@ -223,9 +223,13 @@ function addToGallery(element, type) {
   gallery.prepend(container);
 }
 
+// Added double-click event listener to the video element
 video.addEventListener('dblclick', () => {
+  // Toggle the camera
   usingFrontCamera = !usingFrontCamera;
+  // Restart the camera with the new facing mode
   startCamera();
 });
 
+// Initial camera start
 startCamera();
