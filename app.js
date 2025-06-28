@@ -363,4 +363,171 @@ captureBtn.addEventListener('click', () => {
         } else if (brightness < 80) { // Zonas oscuras
             data[i] = (r * 0.8) + (b * 0.2);
             data[i + 1] = (g * 0.8) + (r * 0.2);
-            data[i + 2] = (b *
+            data[i + 2] = (b * 0.8) + (g * 0.2);
+        }
+      } else if (selectedFilter === 'invert-bw') {
+        const avg = (r + g + b) / 3;
+        data[i] = 255 - avg;
+        data[i + 1] = 255 - avg;
+        data[i + 2] = 255 - avg;
+      } else if (selectedFilter === 'thermal-camera') {
+        if (brightness < 50) {
+          data[i] = 0;
+          data[i + 1] = 0;
+          data[i + 2] = 255 - (brightness * 5);
+        } else if (brightness < 100) {
+          data[i] = 0;
+          data[i + 1] = (brightness - 50) * 5;
+          data[i + 2] = 255;
+        } else if (brightness < 150) {
+          data[i] = 0;
+          data[i + 1] = 255;
+          data[i + 2] = 255 - ((brightness - 100) * 5);
+        } else if (brightness < 200) {
+          data[i] = (brightness - 150) * 5;
+          data[i + 1] = 255;
+          data[i + 2] = 0;
+        } else {
+          data[i] = 255;
+          data[i + 1] = 255 - ((brightness - 200) * 5);
+          data[i + 2] = 0;
+        }
+      }
+    }
+    ctx.putImageData(imageData, 0, 0);
+  }
+
+  let img = new Image();
+  img.src = canvas.toDataURL('image/png');
+  addToGallery(img, 'img');
+});
+
+recordBtn.addEventListener('click', () => {
+  if (!isRecording) {
+    chunks = [];
+    let streamToRecord = glcanvas.captureStream();
+    mediaRecorder = new MediaRecorder(streamToRecord);
+    mediaRecorder.ondataavailable = e => {
+      if (e.data.size > 0) chunks.push(e.data);
+    };
+    mediaRecorder.onstop = () => {
+      const blob = new Blob(chunks, { type: 'video/webm' });
+      const url = URL.createObjectURL(blob);
+      let vid = document.createElement('video');
+      vid.src = url;
+      vid.controls = true;
+      addToGallery(vid, 'video');
+    };
+    mediaRecorder.start();
+    isRecording = true;
+    controls.style.display = 'none';
+    recordingControls.style.display = 'flex';
+  }
+});
+
+pauseBtn.addEventListener('click', () => {
+  if (isPaused) {
+    mediaRecorder.resume();
+    pauseBtn.textContent = '⏸️';
+  } else {
+    mediaRecorder.pause();
+    pauseBtn.textContent = '▶️';
+  }
+  isPaused = !isPaused;
+});
+
+stopBtn.addEventListener('click', () => {
+  mediaRecorder.stop();
+  isRecording = false;
+  controls.style.display = 'flex';
+  recordingControls.style.display = 'none';
+});
+
+filterBtn.addEventListener('click', () => {
+  if (filtersDropdown.style.display === 'block') {
+    filtersDropdown.style.display = 'none';
+  } else {
+    filtersDropdown.style.display = 'block';
+    filtersDropdown.style.opacity = '0.7';
+  }
+});
+
+filterSelect.addEventListener('change', () => {
+  selectedFilter = filterSelect.value;
+  
+  // Limpiar bufferCanvas y restablecer globalAlpha al cambiar de filtro
+  const bCtx = bufferCanvas.getContext('2d');
+  bCtx.clearRect(0, 0, bufferCanvas.width, bufferCanvas.height);
+  glcanvas.getContext('2d').globalAlpha = 1.0;
+
+  // Lógica para iniciar/detener el procesamiento de audio
+  if (selectedFilter === 'audio-reactive') {
+      setupAudioProcessing();
+  } else {
+      // Detener procesamiento de audio si se cambia a otro filtro
+      if (microphone) {
+          microphone.disconnect();
+          microphone = null;
+      }
+      if (audioContext) {
+          // Cerrar el AudioContext si está corriendo
+          if (audioContext.state === 'running') {
+            audioContext.close();
+          }
+          audioContext = null;
+      }
+  }
+});
+
+fullscreenBtn.addEventListener('click', () => {
+  if (!document.fullscreenElement) {
+    document.documentElement.requestFullscreen();
+    controls.style.opacity = '0.2';
+    recordingControls.style.opacity = '0.2';
+    if (filtersDropdown.style.display === 'block') {
+      filtersDropdown.style.opacity = '0.2';
+    }
+  } else {
+    document.exitFullscreen();
+    controls.style.opacity = '1';
+    recordingControls.style.opacity = '1';
+    if (filtersDropdown.style.display === 'block') {
+      filtersDropdown.style.opacity = '0.7';
+    }
+  }
+});
+
+function addToGallery(element, type) {
+  let container = document.createElement('div');
+  container.className = 'gallery-item';
+  container.appendChild(element);
+
+  let actions = document.createElement('div');
+  actions.className = 'gallery-actions';
+
+  let downloadBtn = document.createElement('button');
+  downloadBtn.textContent = 'Descargar';
+  downloadBtn.onclick = () => {
+    const a = document.createElement('a');
+    a.href = element.src;
+    a.download = type === 'img' ? 'foto.png' : 'video.webm';
+    a.click();
+  };
+
+  let deleteBtn = document.createElement('button');
+  deleteBtn.textContent = 'Eliminar';
+  deleteBtn.onclick = () => container.remove();
+
+  actions.appendChild(downloadBtn);
+  actions.appendChild(deleteBtn);
+  container.appendChild(actions);
+
+  gallery.prepend(container);
+}
+
+video.addEventListener('dblclick', () => {
+  usingFrontCamera = !usingFrontCamera;
+  startCamera();
+});
+
+startCamera();
