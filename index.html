@@ -12,6 +12,8 @@
     <canvas id="glcanvas"></canvas>
     <canvas id="canvas" style="display:none;"></canvas>
 
+    <canvas id="bufferCanvas" style="display:none;"></canvas>
+
     <div id="controls">
       <button id="capture-button" class="circle white"></button>
       <button id="record-button" class="circle red"></button>
@@ -29,11 +31,14 @@
       <select id="filterSelect">
         <option value="none">Sin filtro</option>
         <option value="grayscale">Gris</option>
-        <option value="invert">Invertir (Color)</option> <option value="invert-bw">Negativo B/N</option> <option value="thermal-camera">Cámara Térmica</option> <option value="sepia">Sepia</option>
+        <option value="invert">Invertir (Color)</option>
+        <option value="invert-bw">Negativo B/N</option>
+        <option value="thermal-camera">Cámara Térmica</option>
+        <option value="long-exposure">Larga Exposición</option> <option value="sepia">Sepia</option>
         <option value="eco-pink">Eco pink</option>
         <option value="weird">Weird</option>
       </select>
-      </div>
+    </div>
   </div>
 
   <div id="gallery"></div>
