@@ -12,8 +12,6 @@ let filtersDropdown = document.getElementById('filters-dropdown');
 let gallery = document.getElementById('gallery');
 let controls = document.getElementById('controls');
 let recordingControls = document.getElementById('recording-controls');
-let invertControls = document.getElementById('invert-controls'); // Nuevo: Referencia al contenedor del slider
-let invertAmountSlider = document.getElementById('invertAmount'); // Nuevo: Referencia al slider
 
 let currentStream;
 let mediaRecorder;
@@ -22,25 +20,26 @@ let isRecording = false;
 let isPaused = false;
 let usingFrontCamera = true;
 let selectedFilter = 'none';
-let currentInvertAmount = 100; // Nuevo: Valor inicial para el slider de inversión
 
 function applyFilter(ctx) {
-  switch (selectedFilter) {
-    case 'grayscale':
-      ctx.filter = 'grayscale(100%)';
-      break;
-    case 'invert':
-      ctx.filter = `invert(${currentInvertAmount}%)`; // Usa el valor del slider
-      break;
-    case 'sepia':
-      ctx.filter = 'sepia(100%)';
-      break;
-    case 'eco-pink':
-    case 'weird':
-      ctx.filter = 'none';
-      break;
-    default:
-      ctx.filter = 'none';
+  // Los filtros de manipulación de píxeles no usan ctx.filter
+  if (selectedFilter === 'eco-pink' || selectedFilter === 'weird' ||
+      selectedFilter === 'invert-bw' || selectedFilter === 'thermal-camera') {
+    ctx.filter = 'none';
+  } else {
+    switch (selectedFilter) {
+      case 'grayscale':
+        ctx.filter = 'grayscale(100%)';
+        break;
+      case 'invert': // Vuelve a ser solo invert(100%) sin slider
+        ctx.filter = 'invert(100%)';
+        break;
+      case 'sepia':
+        ctx.filter = 'sepia(100%)';
+        break;
+      default:
+        ctx.filter = 'none';
+    }
   }
 }
 
@@ -79,6 +78,10 @@ function drawVideoFrame() {
     if (video.readyState === video.HAVE_ENOUGH_DATA) {
       glcanvas.width = video.videoWidth;
       glcanvas.height = video.videoHeight;
+
+      // Aplicar ctx.filter si no es un filtro de manipulación de píxeles
+      // Se hace antes del drawImage y el save/restore para que los efectos de CSS se apliquen
+      // y luego podamos manipular los píxeles resultantes si es necesario.
       applyFilter(ctx);
       ctx.save();
       if (usingFrontCamera) {
@@ -86,8 +89,12 @@ function drawVideoFrame() {
         ctx.scale(-1, 1);
       }
       ctx.drawImage(video, 0, 0, glcanvas.width, glcanvas.height);
+      ctx.restore(); // Restaurar el contexto después de dibujar la imagen (importante para ImageData)
 
-      if (selectedFilter === 'eco-pink' || selectedFilter === 'weird') {
+      // Procesamiento de píxeles para filtros específicos
+      if (selectedFilter === 'eco-pink' || selectedFilter === 'weird' ||
+          selectedFilter === 'invert-bw' || selectedFilter === 'thermal-camera') {
+        
         let imageData = ctx.getImageData(0, 0, glcanvas.width, glcanvas.height);
         let data = imageData.data;
 
@@ -111,11 +118,40 @@ function drawVideoFrame() {
               data[i + 1] = (g * 0.8) + (r * 0.2);
               data[i + 2] = (b * 0.8) + (g * 0.2);
             }
+          } else if (selectedFilter === 'invert-bw') {
+            // Negativo en blanco y negro
+            const avg = (r + g + b) / 3; // Calcula el promedio para convertir a escala de grises
+            data[i] = 255 - avg;     // Invierte el valor de gris para Rojo
+            data[i + 1] = 255 - avg; // Invierte el valor de gris para Verde
+            data[i + 2] = 255 - avg; // Invierte el valor de gris para Azul
+          } else if (selectedFilter === 'thermal-camera') {
+            // Simulación de cámara térmica
+            // Mapping de brillo a colores (azul -> verde -> amarillo -> rojo)
+            if (brightness < 50) { // Muy frío - Azul profundo
+              data[i] = 0;
+              data[i + 1] = 0;
+              data[i + 2] = 255 - (brightness * 5); // Más azul cuanto más oscuro
+            } else if (brightness < 100) { // Frío - Azul a cian
+              data[i] = 0;
+              data[i + 1] = (brightness - 50) * 5; // Añade verde
+              data[i + 2] = 255;
+            } else if (brightness < 150) { // Templado - Cian a verde
+              data[i] = 0;
+              data[i + 1] = 255;
+              data[i + 2] = 255 - ((brightness - 100) * 5); // Quita azul
+            } else if (brightness < 200) { // Cálido - Verde a amarillo
+              data[i] = (brightness - 150) * 5; // Añade rojo
+              data[i + 1] = 255;
+              data[i + 2] = 0;
+            } else { // Muy cálido - Amarillo a rojo
+              data[i] = 255;
+              data[i + 1] = 255 - ((brightness - 200) * 5); // Quita verde
+              data[i + 2] = 0;
+            }
           }
         }
         ctx.putImageData(imageData, 0, 0);
       }
-      ctx.restore();
     }
     requestAnimationFrame(draw);
   }
@@ -126,12 +162,75 @@ captureBtn.addEventListener('click', () => {
   canvas.width = glcanvas.width;
   canvas.height = glcanvas.height;
   let ctx = canvas.getContext('2d');
+
+  // Asegurarse de que el filtro se aplique correctamente para la captura
   applyFilter(ctx);
+  ctx.save();
   if (usingFrontCamera) {
     ctx.translate(canvas.width, 0);
     ctx.scale(-1, 1);
   }
   ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+  ctx.restore();
+
+  // Si es un filtro de manipulación de píxeles, re-aplicar aquí para la captura
+  if (selectedFilter === 'eco-pink' || selectedFilter === 'weird' ||
+      selectedFilter === 'invert-bw' || selectedFilter === 'thermal-camera') {
+    let imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+    let data = imageData.data;
+
+    for (let i = 0; i < data.length; i += 4) {
+      const r = data[i], g = data[i + 1], b = data[i + 2];
+      const brightness = (r + g + b) / 3;
+
+      if (selectedFilter === 'eco-pink') {
+        if (brightness < 100) {
+          data[i] = Math.min(255, r + 60);
+          data[i + 1] = Math.min(255, g + 80);
+          data[i + 2] = Math.min(255, b + 60);
+        }
+      } else if (selectedFilter === 'weird') {
+        if (brightness > 150) {
+          data[i] = b;
+          data[i + 1] = r;
+          data[i + 2] = g;
+        } else if (brightness < 80) {
+          data[i] = (r * 0.8) + (b * 0.2);
+          data[i + 1] = (g * 0.8) + (r * 0.2);
+          data[i + 2] = (b * 0.8) + (g * 0.2);
+        }
+      } else if (selectedFilter === 'invert-bw') {
+        const avg = (r + g + b) / 3;
+        data[i] = 255 - avg;
+        data[i + 1] = 255 - avg;
+        data[i + 2] = 255 - avg;
+      } else if (selectedFilter === 'thermal-camera') {
+        if (brightness < 50) {
+          data[i] = 0;
+          data[i + 1] = 0;
+          data[i + 2] = 255 - (brightness * 5);
+        } else if (brightness < 100) {
+          data[i] = 0;
+          data[i + 1] = (brightness - 50) * 5;
+          data[i + 2] = 255;
+        } else if (brightness < 150) {
+          data[i] = 0;
+          data[i + 1] = 255;
+          data[i + 2] = 255 - ((brightness - 100) * 5);
+        } else if (brightness < 200) {
+          data[i] = (brightness - 150) * 5;
+          data[i + 1] = 255;
+          data[i + 2] = 0;
+        } else {
+          data[i] = 255;
+          data[i + 1] = 255 - ((brightness - 200) * 5);
+          data[i + 2] = 0;
+        }
+      }
+    }
+    ctx.putImageData(imageData, 0, 0);
+  }
+
   let img = new Image();
   img.src = canvas.toDataURL('image/png');
   addToGallery(img, 'img');
@@ -140,8 +239,9 @@ captureBtn.addEventListener('click', () => {
 recordBtn.addEventListener('click', () => {
   if (!isRecording) {
     chunks = [];
-    let stream = glcanvas.captureStream();
-    mediaRecorder = new MediaRecorder(stream);
+    // Para grabar los filtros de manipulación de píxeles, el stream debe capturar el canvas
+    let streamToRecord = glcanvas.captureStream();
+    mediaRecorder = new MediaRecorder(streamToRecord);
     mediaRecorder.ondataavailable = e => {
       if (e.data.size > 0) chunks.push(e.data);
     };
@@ -179,33 +279,18 @@ stopBtn.addEventListener('click', () => {
 });
 
 filterBtn.addEventListener('click', () => {
-  // Cuando se abre el dropdown, ajusta la opacidad
   if (filtersDropdown.style.display === 'block') {
     filtersDropdown.style.display = 'none';
   } else {
     filtersDropdown.style.display = 'block';
-    filtersDropdown.style.opacity = '0.7'; // Opacidad baja para el panel
+    filtersDropdown.style.opacity = '0.7';
   }
 });
 
 filterSelect.addEventListener('change', () => {
   selectedFilter = filterSelect.value;
-  // Muestra u oculta el slider de inversión según el filtro seleccionado
-  if (selectedFilter === 'invert') {
-    invertControls.style.display = 'block';
-    invertAmountSlider.value = currentInvertAmount; // Restaura el último valor
-  } else {
-    invertControls.style.display = 'none';
-  }
-  // Puedes decidir si cerrar el dropdown al cambiar el filtro
-  // filtersDropdown.style.display = 'none';
-});
-
-// Nuevo: Listener para el slider de inversión
-invertAmountSlider.addEventListener('input', () => {
-  currentInvertAmount = invertAmountSlider.value;
-  // No es necesario llamar a drawVideoFrame() directamente,
-  // requestAnimationFrame ya se encarga de redibujar con el nuevo filtro.
+  // Ya no hay slider, así que no se necesita lógica para ocultar/mostrar invertControls
+  // filtersDropdown.style.display = 'none'; // Puedes decidir si quieres que se cierre automáticamente
 });
 
 fullscreenBtn.addEventListener('click', () => {
@@ -213,7 +298,6 @@ fullscreenBtn.addEventListener('click', () => {
     document.documentElement.requestFullscreen();
     controls.style.opacity = '0.2';
     recordingControls.style.opacity = '0.2';
-    // También aplicar opacidad al dropdown si está abierto
     if (filtersDropdown.style.display === 'block') {
       filtersDropdown.style.opacity = '0.2';
     }
@@ -221,9 +305,8 @@ fullscreenBtn.addEventListener('click', () => {
     document.exitFullscreen();
     controls.style.opacity = '1';
     recordingControls.style.opacity = '1';
-    // Restaurar opacidad del dropdown
     if (filtersDropdown.style.display === 'block') {
-      filtersDropdown.style.opacity = '0.7'; // Opacidad normal del panel
+      filtersDropdown.style.opacity = '0.7';
     }
   }
 });
