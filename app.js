@@ -12,12 +12,13 @@ let filtersDropdown = document.getElementById('filters-dropdown');
 let gallery = document.getElementById('gallery');
 let controls = document.getElementById('controls');
 let recordingControls = document.getElementById('recording-controls');
+let cameraContainer = document.getElementById('camera-container'); // Nueva referencia para el contenedor de la cámara
 
 // Nuevos elementos para la selección de cámara y el panel
-let cameraPanel = document.getElementById('camera-panel'); // Reference to the new panel
-let cameraPanelHeader = document.getElementById('camera-panel-header'); // Reference to the panel header
-let minimizeCameraPanelBtn = document.getElementById('minimize-camera-panel'); // Reference to the minimize button
-let cameraPanelContent = document.getElementById('camera-panel-content'); // Reference to the panel content
+let cameraPanel = document.getElementById('camera-panel');
+let cameraPanelHeader = document.getElementById('camera-panel-header');
+let minimizeCameraPanelBtn = document.getElementById('minimize-camera-panel');
+let cameraPanelContent = document.getElementById('camera-panel-content');
 let cameraSelect = document.getElementById('cameraSelect');
 let switchCameraButton = document.getElementById('switchCameraButton');
 
@@ -27,7 +28,11 @@ let chunks = [];
 let isRecording = false;
 let isPaused = false;
 let selectedFilter = 'none';
-let currentCameraDeviceId = null; // Almacena el ID del dispositivo de la cámara actual
+let currentCameraDeviceId = null;
+
+// Variables para el arrastre del panel
+let isDragging = false;
+let offsetX, offsetY;
 
 function applyFilter(ctx) {
   switch (selectedFilter) {
@@ -49,7 +54,7 @@ function applyFilter(ctx) {
   }
 }
 
-// Función para listar las cámaras disponibles
+// Función para listar todas las cámaras disponibles en el dispositivo
 async function listCameras() {
   try {
     const devices = await navigator.mediaDevices.enumerateDevices();
@@ -63,15 +68,14 @@ async function listCameras() {
         option.textContent = device.label || `Cámara ${videoDevices.indexOf(device) + 1}`;
         cameraSelect.appendChild(option);
       });
-      // Seleccionar la cámara que se está usando si ya hay una
-      if (currentCameraDeviceId) {
-        cameraSelect.value = currentCameraDeviceId;
-      } else {
-        // Si no hay una cámara seleccionada, intenta iniciar con la primera disponible
+
+      // Si no hay una cámara seleccionada, o si la cámara actual ya no está disponible,
+      // selecciona la primera disponible.
+      if (!currentCameraDeviceId || !videoDevices.some(d => d.deviceId === currentCameraDeviceId)) {
         currentCameraDeviceId = videoDevices[0].deviceId;
-        cameraSelect.value = currentCameraDeviceId;
       }
-      startCamera(currentCameraDeviceId); // Iniciar la cámara con la primera o la seleccionada
+      cameraSelect.value = currentCameraDeviceId; // Asegura que el select muestre la cámara activa
+      startCamera(currentCameraDeviceId); // Iniciar la cámara con la seleccionada
     } else {
       alert('No se encontraron dispositivos de cámara.');
     }
@@ -88,7 +92,7 @@ async function startCamera(deviceId) {
 
   const constraints = {
     video: {
-      deviceId: deviceId ? { exact: deviceId } : undefined,
+      deviceId: deviceId ? { exact: deviceId } : undefined, // Usa el ID de dispositivo exacto
       width: { ideal: 1280 },
       height: { ideal: 720 }
     },
@@ -98,7 +102,7 @@ async function startCamera(deviceId) {
   try {
     currentStream = await navigator.mediaDevices.getUserMedia(constraints);
     video.srcObject = currentStream;
-    currentCameraDeviceId = deviceId || currentStream.getVideoTracks()[0].getSettings().deviceId; // Guardar el ID de la cámara activa
+    currentCameraDeviceId = deviceId || currentStream.getVideoTracks()[0].getSettings().deviceId;
 
     video.onloadedmetadata = () => {
       video.play();
@@ -121,10 +125,11 @@ function drawVideoFrame() {
       applyFilter(ctx);
       ctx.save();
 
-      // Determinar si la cámara es frontal o trasera para aplicar el espejo
       const videoTrack = currentStream.getVideoTracks()[0];
       const settings = videoTrack.getSettings();
-      const isFrontFacing = settings.facingMode === 'user';
+      // 'user' para cámara frontal, 'environment' para trasera.
+      // Si facingMode no está disponible o es 'user', asumimos frontal y aplicamos espejo.
+      const isFrontFacing = settings.facingMode === 'user' || !settings.facingMode;
 
       if (isFrontFacing) {
         ctx.translate(glcanvas.width, 0);
@@ -176,7 +181,7 @@ captureBtn.addEventListener('click', () => {
 
   const videoTrack = currentStream.getVideoTracks()[0];
   const settings = videoTrack.getSettings();
-  const isFrontFacing = settings.facingMode === 'user';
+  const isFrontFacing = settings.facingMode === 'user' || !settings.facingMode;
 
   if (isFrontFacing) {
     ctx.translate(canvas.width, 0);
@@ -191,7 +196,7 @@ captureBtn.addEventListener('click', () => {
 recordBtn.addEventListener('click', () => {
   if (!isRecording) {
     chunks = [];
-    let streamToRecord = glcanvas.captureStream(); // Capturar el stream del canvas con los filtros
+    let streamToRecord = glcanvas.captureStream();
     mediaRecorder = new MediaRecorder(streamToRecord);
     mediaRecorder.ondataavailable = e => {
       if (e.data.size > 0) chunks.push(e.data);
@@ -241,7 +246,7 @@ filterSelect.addEventListener('change', () => {
 
 fullscreenBtn.addEventListener('click', () => {
   if (!document.fullscreenElement) {
-    document.documentElement.requestFullscreen();
+    cameraContainer.requestFullscreen(); // Entra en fullscreen el contenedor principal
   } else {
     document.exitFullscreen();
   }
@@ -283,16 +288,60 @@ switchCameraButton.addEventListener('click', () => {
   }
 });
 
-// Logic for the new camera panel (minimizing/maximizing)
-cameraPanelHeader.addEventListener('click', () => {
-  cameraPanelContent.classList.toggle('hidden');
-  cameraPanel.classList.toggle('minimized');
-  if (cameraPanelContent.classList.contains('hidden')) {
-    minimizeCameraPanelBtn.textContent = '+'; // Change to plus when minimized
-  } else {
-    minimizeCameraPanelBtn.textContent = '-'; // Change to minus when maximized
+// Lógica para el panel de cámara (minimizar/maximizar)
+cameraPanelHeader.addEventListener('click', (e) => {
+  // Evitar que el click en el header para minimizar/maximizar inicie el arrastre
+  if (e.target.id === 'minimize-camera-panel' || e.target.tagName === 'SPAN') {
+    cameraPanelContent.classList.toggle('hidden');
+    cameraPanel.classList.toggle('minimized');
+    if (cameraPanelContent.classList.contains('hidden')) {
+      minimizeCameraPanelBtn.textContent = '+';
+    } else {
+      minimizeCameraPanelBtn.textContent = '-';
+    }
   }
 });
+
+// Lógica para arrastrar el panel de cámara
+cameraPanel.addEventListener('mousedown', (e) => {
+  // Solo arrastrar si no se hizo click en el select o el botón de cambiar cámara
+  if (e.target.id !== 'cameraSelect' && e.target.id !== 'switchCameraButton') {
+    isDragging = true;
+    offsetX = e.clientX - cameraPanel.getBoundingClientRect().left;
+    offsetY = e.clientY - cameraPanel.getBoundingClientRect().top;
+    cameraPanel.style.cursor = 'grabbing';
+  }
+});
+
+document.addEventListener('mousemove', (e) => {
+  if (!isDragging) return;
+
+  // Calcula las nuevas posiciones
+  let newX = e.clientX - offsetX;
+  let newY = e.clientY - offsetY;
+
+  // Limita el arrastre dentro del contenedor de la cámara
+  const containerRect = cameraContainer.getBoundingClientRect();
+  const panelRect = cameraPanel.getBoundingClientRect();
+
+  // Limitar en X
+  if (newX < 0) newX = 0;
+  if (newX + panelRect.width > containerRect.width) newX = containerRect.width - panelRect.width;
+
+  // Limitar en Y
+  if (newY < 0) newY = 0;
+  if (newY + panelRect.height > containerRect.height) newY = containerRect.height - panelRect.height;
+
+
+  cameraPanel.style.left = newX + 'px';
+  cameraPanel.style.top = newY + 'px';
+});
+
+document.addEventListener('mouseup', () => {
+  isDragging = false;
+  cameraPanel.style.cursor = 'grab';
+});
+
 
 // Inicializar la lista de cámaras al cargar la página
 listCameras();
