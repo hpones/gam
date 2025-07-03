@@ -3,14 +3,16 @@ body {
   background: #000;
   font-family: sans-serif;
   overflow-x: hidden;
+  /* Permitir scroll si la galería es grande */
+  overflow-y: auto; 
 }
 
 #camera-container {
   position: relative;
   width: 100%;
   max-width: 100vw;
-  height: 100vh;
-  overflow: hidden;
+  height: 100vh; /* Ocupa el 100% del viewport */
+  overflow: hidden; /* Asegura que el video/canvas no se desborden */
 }
 
 video, #glcanvas {
@@ -52,7 +54,7 @@ video, #glcanvas {
   background: yellow;
 }
 
-.small.gray { /* Reutilizamos esta clase para el nuevo botón */
+.small.gray { 
   width: 40px;
   height: 40px;
   border-radius: 50%;
@@ -61,18 +63,9 @@ video, #glcanvas {
   font-size: 20px;
   color: white;
   opacity: 0.8;
-  display: flex; /* Para centrar el símbolo */
+  display: flex;
   justify-content: center;
   align-items: center;
-}
-
-/* Nuevo botón de cambio de cámara */
-#switch-camera-button {
-  position: absolute;
-  bottom: 10px;
-  right: 10px;
-  z-index: 10;
-  transition: opacity 0.3s ease; /* Transición suave para la opacidad */
 }
 
 #fullscreen-button {
@@ -100,6 +93,8 @@ video, #glcanvas {
   z-index: 10;
 }
 
+/* Galería: Ahora posicionada fuera del camera-container en HTML,
+   por lo que solo necesita estilos de layout. */
 #gallery {
   padding: 10px;
   background: #111;
@@ -107,6 +102,10 @@ video, #glcanvas {
   flex-wrap: wrap;
   gap: 10px;
   justify-content: center;
+  /* Asegurar que la galería se muestra correctamente y con scroll si es necesario */
+  width: 100%;
+  min-height: 100px; /* Un poco de altura inicial */
+  box-sizing: border-box; /* Incluir padding en el ancho */
 }
 
 .gallery-item {
@@ -158,10 +157,6 @@ video, #glcanvas {
 #camera-container:-webkit-full-screen #filters-dropdown,
 #camera-container:-moz-full-screen #filters-dropdown,
 #camera-container:-ms-fullscreen #filters-dropdown,
-#camera-container:fullscreen #filters-dropdown,
-#camera-container:-webkit-full-screen #switch-camera-button, /* Aplicado al nuevo botón */
-#camera-container:-moz-full-screen #switch-camera-button,
-#camera-container:-ms-fullscreen #switch-camera-button,
-#camera-container:fullscreen #switch-camera-button {
+#camera-container:fullscreen #filters-dropdown {
   opacity: 0.2; /* Reduce opacidad en fullscreen */
 }
