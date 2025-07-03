@@ -30,6 +30,7 @@ let positionBuffer; // Buffer para las posiciones de los vértices
 let texCoordBuffer; // Buffer para las coordenadas de textura
 let videoTexture; // Textura donde se cargará el fotograma del video
 let filterTypeLocation; // Ubicación del uniform para el tipo de filtro
+let timeLocation; // Ubicación del uniform para el tiempo (para efectos dinámicos)
 
 // Vertex Shader: define la posición de los vértices y las coordenadas de textura
 const vsSource = `
@@ -52,6 +53,7 @@ const fsSource = `
     uniform bool u_flipX;
     uniform int u_filterType; // Nuevo uniform para seleccionar el filtro
     uniform vec2 u_resolution; // Nuevo uniform para la resolución del canvas
+    uniform float u_time; // Nuevo uniform para el tiempo, para efectos dinámicos
 
     varying vec2 v_texCoord;
 
@@ -62,7 +64,18 @@ const fsSource = `
     const int FILTER_SEPIA = 3;
     const int FILTER_ECO_PINK = 4;
     const int FILTER_WEIRD = 5;
-    const int FILTER_GLOW_OUTLINE = 6; // Nuevo filtro
+    const int FILTER_GLOW_OUTLINE = 6;
+    const int FILTER_ANGELICAL_GLITCH = 7; // Nuevo filtro
+
+    // Función para generar ruido básico (copiada de tu fragShader)
+    float random(vec2 st) {
+        return fract(sin(dot(st.xy, vec2(12.9898,78.233))) * 43758.5453123);
+    }
+    
+    // Función de brillo para detectar luz (copiada de tu fragShader)
+    float brightness(vec3 color) {
+        return dot(color, vec3(0.299, 0.587, 0.114));
+    }
 
     void main() {
         vec2 texCoord = v_texCoord;
@@ -104,12 +117,8 @@ const fsSource = `
                 finalColor *= 0.5;
             }
         } else if (u_filterType == FILTER_GLOW_OUTLINE) {
-            // --- Detección de Bordes con Deformación Simplificada ---
             vec2 onePixel = vec2(1.0, 1.0) / u_resolution;
-            
-            // Función para generar un pequeño desplazamiento basado en la coordenada
-            // Esto crea una deformación estática pero que simula movimiento por la variación local
-            float distortionFactor = 0.005; // Ajusta para controlar la intensidad de la deformación
+            float distortionFactor = 0.005;
             vec2 offsetUp = vec2(sin(texCoord.y * 100.0) * distortionFactor, onePixel.y + cos(texCoord.x * 100.0) * distortionFactor);
             vec2 offsetDown = vec2(cos(texCoord.y * 100.0) * distortionFactor, -onePixel.y + sin(texCoord.x * 100.0) * distortionFactor);
             vec2 offsetLeft = vec2(-onePixel.x + sin(texCoord.y * 100.0) * distortionFactor, cos(texCoord.x * 100.0) * distortionFactor);
@@ -120,16 +129,44 @@ const fsSource = `
             vec4 left = texture2D(u_image, texCoord + offsetLeft);
             vec4 right = texture2D(u_image, texCoord + offsetRight);
 
-            // Calcular la diferencia de color para detectar bordes
             float diff = abs(color.r - up.r) + abs(color.r - down.r) + abs(color.r - left.r) + abs(color.r - right.r);
             float edge = smoothstep(0.01, 0.1, diff);
-            vec3 outlineColor = vec3(1.0); // Color del contorno (blanco)
+            vec3 outlineColor = vec3(1.0);
 
-            // --- Efecto de Glow Simplificado ---
             float brightness = dot(color.rgb, vec3(0.299, 0.587, 0.114));
-            float glowFactor = smoothstep(0.7, 1.0, brightness) * 0.5; // Ajusta 0.7 y 1.0 para el rango de brillo, 0.5 para intensidad
+            float glowFactor = smoothstep(0.7, 1.0, brightness) * 0.5;
 
             finalColor = mix(finalColor + glowFactor, outlineColor, edge);
+        } else if (u_filterType == FILTER_ANGELICAL_GLITCH) { // Lógica del nuevo filtro "Angelical Glitch"
+            vec2 uv = texCoord; // Usamos texCoord, que ya maneja el volteo horizontal
+
+            vec4 col = texture2D(u_image, uv);
+            col.rgb *= 1.3; // Aumentamos el brillo
+
+            float b = brightness(col.rgb); // Brillo total del píxel
+
+            // Crear distorsión basada en el tiempo
+            vec2 distortion = vec2(
+                (random(uv + vec2(sin(u_time * 0.1), cos(u_time * 0.1))) - 0.5) * 0.1,  // Distorsión horizontal
+                (random(uv + vec2(cos(u_time * 0.1), sin(u_time * 0.1))) - 0.5) * 0.1   // Distorsión vertical
+            );
+            
+            // Aplicamos distorsión al píxel
+            vec4 distorted = texture2D(u_image, uv + distortion);
+
+            // Si el píxel tiene un alto brillo, agregar un color de resplandor
+            if (b > 0.5) {
+                vec3 glowColor = vec3(
+                    0.5 + 0.3 * sin(u_time * 2.0),
+                    0.2 + 0.5 * cos(u_time * 1.5),
+                    0.6 + 0.4 * sin(u_time * 3.0)
+                );
+
+                finalColor = mix(distorted.rgb, glowColor, 0.5);
+            } else {
+                finalColor = distorted.rgb; // Sin glow, solo distorsión
+            }
+            alpha = col.a; // Mantenemos el alpha original
         }
 
         gl_FragColor = vec4(finalColor, alpha);
@@ -230,6 +267,7 @@ function initWebGL() {
     program.flipXLocation = gl.getUniformLocation(program, 'u_flipX');
     filterTypeLocation = gl.getUniformLocation(program, 'u_filterType'); // Obtener ubicación del uniform del filtro
     program.resolutionLocation = gl.getUniformLocation(program, 'u_resolution'); // Obtener ubicación del uniform de resolución
+    timeLocation = gl.getUniformLocation(program, 'u_time'); // Obtener ubicación del uniform de tiempo
 
     gl.enableVertexAttribArray(program.positionLocation);
     gl.enableVertexAttribArray(program.texCoordLocation);
@@ -352,6 +390,9 @@ function drawVideoFrame() {
     
     // Pasar la resolución al shader
     gl.uniform2f(program.resolutionLocation, glcanvas.width, glcanvas.height);
+    
+    // Pasar el tiempo al shader (en segundos)
+    gl.uniform1f(timeLocation, performance.now() / 1000.0);
 
     let filterIndex = 0; // FILTER_NONE por defecto
     switch (selectedFilter) {
@@ -361,6 +402,7 @@ function drawVideoFrame() {
         case 'eco-pink': filterIndex = 4; break;  // FILTER_ECO_PINK
         case 'weird': filterIndex = 5; break;     // FILTER_WEIRD
         case 'glow-outline': filterIndex = 6; break; // Filtro Glow con contorno
+        case 'angelical-glitch': filterIndex = 7; break; // Nuevo filtro Angelical Glitch
         default: filterIndex = 0; break;
     }
     gl.uniform1i(filterTypeLocation, filterIndex);
