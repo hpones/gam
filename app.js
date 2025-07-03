@@ -14,13 +14,9 @@ let controls = document.getElementById('controls');
 let recordingControls = document.getElementById('recording-controls');
 let cameraContainer = document.getElementById('camera-container');
 
-// Eliminar referencias a los elementos del panel de cámara
-// let cameraPanel = document.getElementById('camera-panel');
-// let cameraPanelHeader = document.getElementById('camera-panel-header');
-// let minimizeCameraPanelBtn = document.getElementById('minimize-camera-panel');
-// let cameraPanelContent = document.getElementById('camera-panel-content');
-// let cameraSelect = document.getElementById('cameraSelect'); // ¡Mantener esta para la lista interna!
-// let switchCameraButton = document.getElementById('switchCameraButton'); // ¡Eliminar esta!
+// NUEVOS ELEMENTOS PARA EL ZOOM
+let zoomSlider = document.getElementById('zoom-slider');
+let zoomValueSpan = document.getElementById('zoom-value');
 
 let currentStream;
 let mediaRecorder;
@@ -30,20 +26,12 @@ let isPaused = false;
 let selectedFilter = 'none';
 let currentCameraDeviceId = null;
 let currentFacingMode = null;
+let currentZoom = 1.0; // Variable para el nivel de zoom actual
 
-// Variables para el arrastre del panel - ELIMINAR YA NO ES NECESARIO
-// let isDragging = false;
-// let offsetX, offsetY;
-
-// Cache del contexto 2D del glcanvas
 const glContext = glcanvas.getContext('2d');
-
-// Array para almacenar los IDs de las cámaras disponibles
 let availableCameraDevices = [];
 
-
 function applyFilterToContext(ctx, filterType) {
-  // ... (Esta función se mantiene igual) ...
   switch (filterType) {
     case 'grayscale':
       ctx.filter = 'grayscale(100%)';
@@ -64,8 +52,8 @@ async function listCameras() {
     const devices = await navigator.mediaDevices.enumerateDevices();
     const videoDevices = devices.filter(device => device.kind === 'videoinput');
 
-    availableCameraDevices = videoDevices; // Almacenar los dispositivos de cámara
-    
+    availableCameraDevices = videoDevices;
+
     if (availableCameraDevices.length > 0) {
       if (!currentCameraDeviceId || !availableCameraDevices.some(d => d.deviceId === currentCameraDeviceId)) {
         currentCameraDeviceId = availableCameraDevices[0].deviceId;
@@ -118,7 +106,6 @@ async function startCamera(deviceId) {
 }
 
 function drawVideoFrame() {
-  // ... (Esta función se mantiene igual, ya está optimizada) ...
   if (glcanvas.width !== video.videoWidth || glcanvas.height !== video.videoHeight) {
     glcanvas.width = video.videoWidth;
     glcanvas.height = video.videoHeight;
@@ -134,11 +121,19 @@ function drawVideoFrame() {
 
   const isFrontFacing = currentFacingMode === 'user' || currentFacingMode === 'unknown';
 
+  // Lógica de zoom digital
+  const zoomedWidth = glcanvas.width / currentZoom;
+  const zoomedHeight = glcanvas.height / currentZoom;
+  const offsetX = (glcanvas.width - zoomedWidth) / 2;
+  const offsetY = (glcanvas.height - zoomedHeight) / 2;
+
   if (isFrontFacing) {
     glContext.translate(glcanvas.width, 0);
     glContext.scale(-1, 1);
+    glContext.drawImage(video, offsetX, offsetY, zoomedWidth, zoomedHeight);
+  } else {
+    glContext.drawImage(video, offsetX, offsetY, zoomedWidth, zoomedHeight);
   }
-  glContext.drawImage(video, 0, 0, glcanvas.width, glcanvas.height);
 
   if (selectedFilter === 'eco-pink' || selectedFilter === 'weird') {
     let imageData = glContext.getImageData(0, 0, glcanvas.width, glcanvas.height);
@@ -173,14 +168,20 @@ function drawVideoFrame() {
 }
 
 captureBtn.addEventListener('click', () => {
-  // ... (Esta función se mantiene igual) ...
   canvas.width = glcanvas.width;
   canvas.height = glcanvas.height;
   let ctx = canvas.getContext('2d');
 
   if (selectedFilter === 'eco-pink' || selectedFilter === 'weird') {
     ctx.filter = 'none';
-    ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+    // Aplicar zoom al canvas de captura también
+    const zoomedWidth = canvas.width / currentZoom;
+    const zoomedHeight = canvas.height / currentZoom;
+    const offsetX = (canvas.width - zoomedWidth) / 2;
+    const offsetY = (canvas.height - zoomedHeight) / 2;
+
+    ctx.drawImage(video, offsetX, offsetY, zoomedWidth, zoomedHeight);
+
     let imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
     let data = imageData.data;
     for (let i = 0; i < data.length; i += 4) {
@@ -210,11 +211,19 @@ captureBtn.addEventListener('click', () => {
   } else {
     applyFilterToContext(ctx, selectedFilter);
     const isFrontFacing = currentFacingMode === 'user' || currentFacingMode === 'unknown';
+    // Aplicar zoom al canvas de captura también
+    const zoomedWidth = canvas.width / currentZoom;
+    const zoomedHeight = canvas.height / currentZoom;
+    const offsetX = (canvas.width - zoomedWidth) / 2;
+    const offsetY = (canvas.height - zoomedHeight) / 2;
+
     if (isFrontFacing) {
       ctx.translate(canvas.width, 0);
       ctx.scale(-1, 1);
+      ctx.drawImage(video, offsetX, offsetY, zoomedWidth, zoomedHeight);
+    } else {
+      ctx.drawImage(video, offsetX, offsetY, zoomedWidth, zoomedHeight);
     }
-    ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
   }
 
   let img = new Image();
@@ -223,7 +232,6 @@ captureBtn.addEventListener('click', () => {
 });
 
 recordBtn.addEventListener('click', () => {
-  // ... (Esta función se mantiene igual) ...
   if (!isRecording) {
     chunks = [];
     let streamToRecord = glcanvas.captureStream();
@@ -251,7 +259,6 @@ recordBtn.addEventListener('click', () => {
 });
 
 pauseBtn.addEventListener('click', () => {
-  // ... (Esta función se mantiene igual) ...
   if (isPaused) {
     mediaRecorder.resume();
     pauseBtn.textContent = '⏸️';
@@ -263,7 +270,6 @@ pauseBtn.addEventListener('click', () => {
 });
 
 stopBtn.addEventListener('click', () => {
-  // ... (Esta función se mantiene igual) ...
   mediaRecorder.stop();
   isRecording = false;
   controls.style.display = 'flex';
@@ -288,7 +294,6 @@ fullscreenBtn.addEventListener('click', () => {
 });
 
 function addToGallery(element, type) {
-  // ... (Esta función se mantiene igual, ya tiene la revocación de URL) ...
   let container = document.createElement('div');
   container.className = 'gallery-item';
   container.appendChild(element);
@@ -305,6 +310,31 @@ function addToGallery(element, type) {
     a.click();
   };
 
+  // NUEVO BOTÓN DE COMPARTIR
+  let shareBtn = document.createElement('button');
+  shareBtn.textContent = 'Compartir';
+  shareBtn.onclick = async () => {
+    if (navigator.share) {
+      try {
+        const file = await fetch(element.src).then(res => res.blob());
+        const fileName = type === 'img' ? 'foto.png' : 'video.webm';
+        const fileType = type === 'img' ? 'image/png' : 'video/webm';
+        const shareData = {
+          files: [new File([file], fileName, { type: fileType })],
+          title: 'Mi creación desde Experimental Camera',
+          text: '¡Echa un vistazo a lo que hice con Experimental Camera!'
+        };
+        await navigator.share(shareData);
+        console.log('Contenido compartido exitosamente');
+      } catch (error) {
+        console.error('Error al compartir:', error);
+      }
+    } else {
+      alert('La API Web Share no es compatible con este navegador.');
+    }
+  };
+
+
   let deleteBtn = document.createElement('button');
   deleteBtn.textContent = 'Eliminar';
   deleteBtn.onclick = () => {
@@ -315,19 +345,16 @@ function addToGallery(element, type) {
   };
 
   actions.appendChild(downloadBtn);
+  if (navigator.share) { // Solo añadir el botón de compartir si la API está disponible
+    actions.appendChild(shareBtn);
+  }
   actions.appendChild(deleteBtn);
   container.appendChild(actions);
 
   gallery.prepend(container);
 }
 
-// ELIMINAR ESTA LÓGICA DEL PANEL
-// cameraPanelHeader.addEventListener('click', (e) => { ... });
-// cameraPanel.addEventListener('mousedown', (e) => { ... });
-// document.addEventListener('mousemove', (e) => { ... });
-// document.addEventListener('mouseup', () => { ... });
-
-// *** NUEVA LÓGICA: GESTO DE DOBLE CLICK PARA CAMBIAR DE CÁMARA ***
+// *** LÓGICA DE GESTO DE DOBLE CLICK PARA CAMBIAR DE CÁMARA ***
 video.addEventListener('dblclick', () => {
   if (availableCameraDevices.length > 1) {
     const currentIdx = availableCameraDevices.findIndex(
@@ -337,9 +364,15 @@ video.addEventListener('dblclick', () => {
     const nextDeviceId = availableCameraDevices[nextIdx].deviceId;
     startCamera(nextDeviceId);
   } else {
-    console.log("Solo hay una cámara disponible.");
-    // Opcional: Mostrar un mensaje al usuario.
+    console.log("Solo hay una cámara disponible para cambiar.");
+    // Opcional: Mostrar un mensaje visual al usuario, por ejemplo, un tooltip temporal.
   }
+});
+
+// *** LÓGICA DE CONTROL DE ZOOM ***
+zoomSlider.addEventListener('input', () => {
+  currentZoom = parseFloat(zoomSlider.value);
+  zoomValueSpan.textContent = currentZoom.toFixed(1) + 'x';
 });
 
 listCameras();
