@@ -20,7 +20,6 @@ video, #glcanvas {
   width: 100%;
   height: 100%;
   object-fit: cover;
-  will-change: transform, opacity;
 }
 
 #controls, #recording-controls {
@@ -31,14 +30,6 @@ video, #glcanvas {
   justify-content: center;
   gap: 20px;
   z-index: 10;
-  opacity: 1;
-  transition: opacity 0.3s ease-out;
-  will-change: opacity;
-}
-
-#camera-container:fullscreen #controls,
-#camera-container:fullscreen #recording-controls {
-  opacity: 0.2;
 }
 
 .circle {
@@ -47,12 +38,6 @@ video, #glcanvas {
   border-radius: 50%;
   border: none;
   opacity: 0.8;
-  transition: opacity 0.3s ease-out;
-  will-change: opacity;
-}
-
-.circle:hover {
-  opacity: 1;
 }
 
 .white {
@@ -67,7 +52,7 @@ video, #glcanvas {
   background: yellow;
 }
 
-.small.gray {
+.small.gray { /* Reutilizamos esta clase para el nuevo botón */
   width: 40px;
   height: 40px;
   border-radius: 50%;
@@ -76,12 +61,18 @@ video, #glcanvas {
   font-size: 20px;
   color: white;
   opacity: 0.8;
-  transition: opacity 0.3s ease-out;
-  will-change: opacity;
+  display: flex; /* Para centrar el símbolo */
+  justify-content: center;
+  align-items: center;
 }
 
-.small.gray:hover {
-  opacity: 1;
+/* Nuevo botón de cambio de cámara */
+#switch-camera-button {
+  position: absolute;
+  bottom: 10px;
+  right: 10px;
+  z-index: 10;
+  transition: opacity 0.3s ease; /* Transición suave para la opacidad */
 }
 
 #fullscreen-button {
@@ -95,17 +86,6 @@ video, #glcanvas {
   z-index: 10;
   cursor: pointer;
   font-size: 20px;
-  opacity: 0.8;
-  transition: opacity 0.3s ease-out;
-  will-change: opacity;
-}
-
-#fullscreen-button:hover {
-  opacity: 1;
-}
-
-#camera-container:fullscreen #fullscreen-button {
-  opacity: 0.2;
 }
 
 #filters-dropdown {
@@ -118,8 +98,6 @@ video, #glcanvas {
   padding: 5px;
   border-radius: 5px;
   z-index: 10;
-  transition: opacity 0.3s ease-out;
-  will-change: opacity;
 }
 
 #gallery {
@@ -133,23 +111,57 @@ video, #glcanvas {
 
 .gallery-item {
   position: relative;
+  border: 1px solid #333;
+  padding: 5px;
+  background: #222;
+  border-radius: 5px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
 }
 
-.gallery-item video,
-.gallery-item img {
-  max-width: 150px;
-  border: 2px solid white;
-  border-radius: 5px;
+.gallery-item img, .gallery-item video {
+  max-width: 200px;
+  max-height: 150px;
+  display: block;
+  border-radius: 3px;
 }
 
 .gallery-actions {
   display: flex;
-  justify-content: space-between;
-  margin-top: 4px;
+  gap: 5px;
+  margin-top: 5px;
 }
 
 .gallery-actions button {
-  font-size: 12px;
-  padding: 2px 6px;
+  background: #444;
+  color: white;
+  border: none;
+  padding: 5px 10px;
+  border-radius: 3px;
   cursor: pointer;
+}
+
+/* Reglas para reducir opacidad de los controles en fullscreen */
+#camera-container:-webkit-full-screen #controls,
+#camera-container:-moz-full-screen #controls,
+#camera-container:-ms-fullscreen #controls,
+#camera-container:fullscreen #controls,
+#camera-container:-webkit-full-screen #recording-controls,
+#camera-container:-moz-full-screen #recording-controls,
+#camera-container:-ms-fullscreen #recording-controls,
+#camera-container:fullscreen #recording-controls,
+#camera-container:-webkit-full-screen #filter-button,
+#camera-container:-moz-full-screen #filter-button,
+#camera-container:-ms-fullscreen #filter-button,
+#camera-container:fullscreen #filter-button,
+#camera-container:-webkit-full-screen #filters-dropdown,
+#camera-container:-moz-full-screen #filters-dropdown,
+#camera-container:-ms-fullscreen #filters-dropdown,
+#camera-container:fullscreen #filters-dropdown,
+#camera-container:-webkit-full-screen #switch-camera-button, /* Aplicado al nuevo botón */
+#camera-container:-moz-full-screen #switch-camera-button,
+#camera-container:-ms-fullscreen #switch-camera-button,
+#camera-container:fullscreen #switch-camera-button {
+  opacity: 0.2; /* Reduce opacidad en fullscreen */
 }
