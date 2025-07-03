@@ -343,49 +343,13 @@ captureBtn.addEventListener('click', () => {
         return;
     }
 
-    // Asegurarse de que todos los comandos de renderizado de WebGL se han completado
-    gl.finish(); 
-    console.log('gl.finish() ejecutado antes de gl.readPixels().');
-
-    // Leer los píxeles directamente del glcanvas (WebGL)
-    const pixels = new Uint8Array(glcanvas.width * glcanvas.height * 4);
-    gl.readPixels(0, 0, glcanvas.width, glcanvas.height, gl.RGBA, gl.UNSIGNED_BYTE, pixels);
-    
-    // Para depuración: Muestra los primeros 16 píxeles y verifica si todos son cero.
-    console.log('Píxeles leídos del glcanvas. Primeros 16 píxeles:', pixels.slice(0, 16));
-    if (pixels.every(p => p === 0)) {
-        console.warn('Los píxeles leídos son todos negros (todos ceros). Esto podría indicar un problema de renderizado o lectura en WebGL.');
-    } else {
-        console.log('Se detectaron píxeles no negros, la lectura de WebGL parece correcta.');
-    }
-
-    // Crear un canvas 2D temporal para dibujar y obtener la URL de la imagen
-    canvas.width = glcanvas.width;
-    canvas.height = glcanvas.height;
-    let ctx = canvas.getContext('2d');
-
-    // WebGL lee los píxeles del origen inferior izquierdo, mientras que canvas 2D dibuja desde
-    // el origen superior izquierdo. Necesitamos invertir el eje Y.
-    const imageData = ctx.createImageData(glcanvas.width, glcanvas.height);
-    for (let y = 0; y < glcanvas.height; y++) {
-        for (let x = 0; x < glcanvas.width; x++) {
-            const gl_idx = (y * glcanvas.width + x) * 4; // Índice en el array de píxeles de WebGL
-            // Calcula el índice para el canvas 2D invirtiendo la fila Y
-            const ctx_idx = ((glcanvas.height - 1 - y) * glcanvas.width + x) * 4; 
-
-            imageData.data[ctx_idx + 0] = pixels[gl_idx + 0]; // R
-            imageData.data[ctx_idx + 1] = pixels[gl_idx + 1]; // G
-            imageData.data[ctx_idx + 2] = pixels[gl_idx + 2]; // B
-            imageData.data[ctx_idx + 3] = pixels[gl_idx + 3]; // A
-        }
-    }
-    ctx.putImageData(imageData, 0, 0);
-    console.log('Píxeles puestos en el canvas 2D para generar la imagen.');
-
+    // Ya no usamos gl.readPixels() y la manipulación de ImageData
+    // Simplemente obtenemos la imagen directamente del WebGL canvas usando toDataURL()
     let img = new Image();
-    img.src = canvas.toDataURL('image/png');
+    img.src = glcanvas.toDataURL('image/png'); // Esto obtiene la imagen renderizada del WebGL canvas
+    
     img.onload = () => {
-        console.log('Imagen cargada para la galería.');
+        console.log('Imagen cargada para la galería desde glcanvas.toDataURL().');
         addToGallery(img, 'img');
     };
     img.onerror = (e) => {
