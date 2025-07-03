@@ -13,7 +13,11 @@ let gallery = document.getElementById('gallery');
 let controls = document.getElementById('controls');
 let recordingControls = document.getElementById('recording-controls');
 
-// Nuevos elementos para la selección de cámara
+// Nuevos elementos para la selección de cámara y el panel
+let cameraPanel = document.getElementById('camera-panel'); // Reference to the new panel
+let cameraPanelHeader = document.getElementById('camera-panel-header'); // Reference to the panel header
+let minimizeCameraPanelBtn = document.getElementById('minimize-camera-panel'); // Reference to the minimize button
+let cameraPanelContent = document.getElementById('camera-panel-content'); // Reference to the panel content
 let cameraSelect = document.getElementById('cameraSelect');
 let switchCameraButton = document.getElementById('switchCameraButton');
 
@@ -276,6 +280,17 @@ switchCameraButton.addEventListener('click', () => {
   const selectedDeviceId = cameraSelect.value;
   if (selectedDeviceId && selectedDeviceId !== currentCameraDeviceId) {
     startCamera(selectedDeviceId);
+  }
+});
+
+// Logic for the new camera panel (minimizing/maximizing)
+cameraPanelHeader.addEventListener('click', () => {
+  cameraPanelContent.classList.toggle('hidden');
+  cameraPanel.classList.toggle('minimized');
+  if (cameraPanelContent.classList.contains('hidden')) {
+    minimizeCameraPanelBtn.textContent = '+'; // Change to plus when minimized
+  } else {
+    minimizeCameraPanelBtn.textContent = '-'; // Change to minus when maximized
   }
 });
 
