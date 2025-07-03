@@ -13,6 +13,7 @@ let gallery = document.getElementById('gallery');
 let controls = document.getElementById('controls');
 let recordingControls = document.getElementById('recording-controls');
 let cameraContainer = document.getElementById('camera-container');
+let switchCameraButton = document.getElementById('switch-camera-button'); // Nuevo botón
 
 let currentStream;
 let mediaRecorder;
@@ -31,7 +32,7 @@ let texCoordBuffer; // Buffer para las coordenadas de textura
 let videoTexture; // Textura donde se cargará el fotograma del video
 let filterTypeLocation; // Ubicación del uniform para el tipo de filtro
 
-// Shaders GLSL (en cadenas de texto)
+// Shaders GLSL (sin cambios en esta iteración)
 const vsSource = `
     attribute vec4 a_position;
     attribute vec2 a_texCoord;
@@ -198,7 +199,7 @@ function initWebGL() {
     gl.vertexAttribPointer(program.texCoordLocation, 2, gl.FLOAT, false, 0, 0);
 
     gl.uniform1i(program.imageLocation, 0);
-    gl.uniform1i(filterTypeLocation, 0); // 0 = FILTER_NONE
+    gl.uniform1i(filterTypeLocation, 0);
 }
 
 let availableCameraDevices = [];
@@ -209,14 +210,18 @@ async function listCameras() {
     const videoDevices = devices.filter(device => device.kind === 'videoinput');
 
     availableCameraDevices = videoDevices;
+    console.log('Cámaras disponibles:', availableCameraDevices);
+    console.log('Número de cámaras disponibles:', availableCameraDevices.length);
     
     if (availableCameraDevices.length > 0) {
       if (!currentCameraDeviceId || !availableCameraDevices.some(d => d.deviceId === currentCameraDeviceId)) {
         currentCameraDeviceId = availableCameraDevices[0].deviceId;
+        console.log('Cámara inicial seleccionada:', currentCameraDeviceId);
       }
       startCamera(currentCameraDeviceId);
     } else {
       alert('No se encontraron dispositivos de cámara.');
+      console.warn('No se encontraron dispositivos de cámara.');
     }
   } catch (err) {
     console.error('Error al listar dispositivos de cámara:', err);
@@ -225,8 +230,10 @@ async function listCameras() {
 }
 
 async function startCamera(deviceId) {
+  console.log('Intentando iniciar cámara con Device ID:', deviceId);
   if (currentStream) {
     currentStream.getTracks().forEach(track => track.stop());
+    console.log('Stream anterior detenido.');
   }
 
   const constraints = {
@@ -246,20 +253,26 @@ async function startCamera(deviceId) {
     const videoTrack = currentStream.getVideoTracks()[0];
     const settings = videoTrack.getSettings();
     currentFacingMode = settings.facingMode || 'unknown';
+    console.log('Cámara actual - Device ID:', currentCameraDeviceId, 'Facing Mode:', currentFacingMode);
 
     video.onloadedmetadata = () => {
       video.play();
+      console.log('Video metadata cargada y reproduciendo.');
       if (glcanvas.width !== video.videoWidth || glcanvas.height !== video.videoHeight) {
         glcanvas.width = video.videoWidth;
         glcanvas.height = video.videoHeight;
+        console.log('Canvas WebGL redimensionado a:', glcanvas.width, 'x', glcanvas.height);
         if (gl) {
           gl.viewport(0, 0, glcanvas.width, glcanvas.height);
+          console.log('Viewport de WebGL actualizado.');
         }
       }
       if (!gl) {
         initWebGL();
+        console.log('WebGL inicializado.');
       }
       drawVideoFrame();
+      console.log('Bucle de renderizado WebGL iniciado.');
     };
   } catch (err) {
     console.error('No se pudo acceder a la cámara:', err);
@@ -302,27 +315,36 @@ function drawVideoFrame() {
 
 // --- MANEJADORES DE EVENTOS ---
 captureBtn.addEventListener('click', () => {
+    console.log('Botón de captura clickeado.');
     if (!gl || !glcanvas.width || !glcanvas.height) {
-        console.error('WebGL no está inicializado o el canvas no tiene dimensiones.');
+        console.error('WebGL no está inicializado o el canvas no tiene dimensiones para la captura.');
         return;
     }
 
-    // Leer los píxeles directamente del glcanvas (WebGL)
+    // Asegurarse de que todos los comandos de renderizado de WebGL se han completado
+    gl.finish(); 
+    console.log('gl.finish() ejecutado antes de gl.readPixels().');
+
     const pixels = new Uint8Array(glcanvas.width * glcanvas.height * 4);
     gl.readPixels(0, 0, glcanvas.width, glcanvas.height, gl.RGBA, gl.UNSIGNED_BYTE, pixels);
+    console.log('Píxeles leídos del glcanvas. Primeros 16 píxeles:', pixels.slice(0, 16));
+    if (pixels.every(p => p === 0)) {
+        console.warn('Los píxeles leídos son todos negros. Esto podría indicar un problema de renderizado o lectura.');
+    }
 
-    // Crear un canvas 2D temporal para dibujar y obtener la URL de la imagen
     canvas.width = glcanvas.width;
     canvas.height = glcanvas.height;
     let ctx = canvas.getContext('2d');
 
-    // WebGL lee los píxeles del origen inferior izquierdo, mientras que canvas 2D dibuja desde
-    // el origen superior izquierdo. Necesitamos invertir el eje Y.
     const imageData = ctx.createImageData(glcanvas.width, glcanvas.height);
+    // WebGL tiene el origen (0,0) en la esquina inferior izquierda.
+    // Canvas 2D tiene el origen (0,0) en la esquina superior izquierda.
+    // Necesitamos invertir la coordenada Y al copiar los píxeles.
     for (let y = 0; y < glcanvas.height; y++) {
         for (let x = 0; x < glcanvas.width; x++) {
-            const gl_idx = (y * glcanvas.width + x) * 4;
-            const ctx_idx = ((glcanvas.height - 1 - y) * glcanvas.width + x) * 4; // Invertir Y
+            const gl_idx = (y * glcanvas.width + x) * 4; // Índice en el array de píxeles de WebGL
+            // Calcula el índice para el canvas 2D invirtiendo la fila Y
+            const ctx_idx = ((glcanvas.height - 1 - y) * glcanvas.width + x) * 4; 
 
             imageData.data[ctx_idx + 0] = pixels[gl_idx + 0]; // R
             imageData.data[ctx_idx + 1] = pixels[gl_idx + 1]; // G
@@ -331,23 +353,33 @@ captureBtn.addEventListener('click', () => {
         }
     }
     ctx.putImageData(imageData, 0, 0);
+    console.log('Píxeles puestos en el canvas 2D.');
 
     let img = new Image();
     img.src = canvas.toDataURL('image/png');
-    addToGallery(img, 'img');
+    img.onload = () => {
+        console.log('Imagen cargada para la galería.');
+        addToGallery(img, 'img');
+    };
+    img.onerror = (e) => {
+        console.error('Error al cargar la imagen para la galería:', e);
+    };
 });
 
 
 recordBtn.addEventListener('click', () => {
   if (!isRecording) {
     chunks = [];
+    console.log('Iniciando grabación desde glcanvas.captureStream().');
     let streamToRecord = glcanvas.captureStream();
     mediaRecorder = new MediaRecorder(streamToRecord, { mimeType: 'video/webm; codecs=vp8' });
 
     mediaRecorder.ondataavailable = e => {
       if (e.data.size > 0) chunks.push(e.data);
+      console.log('Datos de video disponibles, tamaño:', e.data.size);
     };
     mediaRecorder.onstop = () => {
+      console.log('Grabación detenida. Chunks capturados:', chunks.length);
       const blob = new Blob(chunks, { type: 'video/webm' });
       const url = URL.createObjectURL(blob);
       let vid = document.createElement('video');
@@ -355,6 +387,7 @@ recordBtn.addEventListener('click', () => {
       vid.controls = true;
       vid.onloadedmetadata = () => {
         vid.play();
+        console.log('Video grabado cargado y reproduciendo.');
       };
       addToGallery(vid, 'video');
     };
@@ -362,6 +395,7 @@ recordBtn.addEventListener('click', () => {
     isRecording = true;
     controls.style.display = 'none';
     recordingControls.style.display = 'flex';
+    console.log('Grabación iniciada.');
   }
 });
 
@@ -369,9 +403,11 @@ pauseBtn.addEventListener('click', () => {
   if (isPaused) {
     mediaRecorder.resume();
     pauseBtn.textContent = '⏸️';
+    console.log('Grabación reanudada.');
   } else {
     mediaRecorder.pause();
     pauseBtn.textContent = '▶️';
+    console.log('Grabación pausada.');
   }
   isPaused = !isPaused;
 });
@@ -381,22 +417,27 @@ stopBtn.addEventListener('click', () => {
   isRecording = false;
   controls.style.display = 'flex';
   recordingControls.style.display = 'none';
+  console.log('Grabación finalizada.');
 });
 
 filterBtn.addEventListener('click', () => {
   filtersDropdown.style.display = (filtersDropdown.style.display === 'block') ? 'none' : 'block';
+  console.log('Toggle de dropdown de filtros.');
 });
 
 filterSelect.addEventListener('change', () => {
   selectedFilter = filterSelect.value;
   filtersDropdown.style.display = 'none';
+  console.log('Filtro seleccionado:', selectedFilter);
 });
 
 fullscreenBtn.addEventListener('click', () => {
   if (!document.fullscreenElement) {
     cameraContainer.requestFullscreen();
+    console.log('Solicitando fullscreen.');
   } else {
     document.exitFullscreen();
+    console.log('Saliendo de fullscreen.');
   }
 });
 
@@ -415,6 +456,7 @@ function addToGallery(element, type) {
     a.href = element.src;
     a.download = type === 'img' ? 'foto.png' : 'video.webm';
     a.click();
+    console.log('Descargando', type);
   };
 
   let shareBtn = document.createElement('button');
@@ -437,6 +479,7 @@ function addToGallery(element, type) {
       }
     } else {
       alert('La API Web Share no es compatible con este navegador.');
+      console.warn('La API Web Share no es compatible.');
     }
   };
 
@@ -447,6 +490,7 @@ function addToGallery(element, type) {
       URL.revokeObjectURL(element.src);
     }
     container.remove();
+    console.log('Elemento de galería eliminado.');
   };
 
   actions.appendChild(downloadBtn);
@@ -459,47 +503,48 @@ function addToGallery(element, type) {
   gallery.prepend(container);
 }
 
-// --- LÓGICA DE DOBLE TAP PARA CAMBIAR DE CÁMARA (para móviles) ---
+// --- LÓGICA DE DOBLE TAP/CLICK PARA CAMBIAR DE CÁMARA ---
 let lastTap = 0;
 const DBL_TAP_THRESHOLD = 300;
 
-// Aquí la corrección con { passive: false } para touchend
 glcanvas.addEventListener('touchend', (event) => {
-    // console.log("Touchend en glcanvas"); // Para depuración
+    console.log("Evento 'touchend' en glcanvas.");
     const currentTime = new Date().getTime();
     const tapLength = currentTime - lastTap;
 
     if (tapLength < DBL_TAP_THRESHOLD && tapLength > 0) {
-        // console.log("Doble tap detectado!"); // Para depuración
-        event.preventDefault(); // Prevenir el zoom predeterminado
-
-        if (availableCameraDevices.length > 1) {
-            const currentIdx = availableCameraDevices.findIndex(
-                device => device.deviceId === currentCameraDeviceId
-            );
-            const nextIdx = (currentIdx + 1) % availableCameraDevices.length;
-            const nextDeviceId = availableCameraDevices[nextIdx].deviceId;
-            startCamera(nextDeviceId);
-        } else {
-            console.log("Solo hay una cámara disponible para cambiar.");
-        }
+        console.log("¡Doble tap detectado!");
+        event.preventDefault(); // Prevenir el zoom por doble tap predeterminado
+        toggleCamera();
     }
     lastTap = currentTime;
-}, { passive: false }); // <--- Importante: { passive: false }
+}, { passive: false });
 
-// Evento dblclick en glcanvas
 glcanvas.addEventListener('dblclick', () => {
-    // console.log("Doble click detectado!"); // Para depuración
+    console.log("Evento 'dblclick' en glcanvas.");
+    toggleCamera();
+});
+
+// Nuevo Event Listener para el botón de cambio de cámara
+switchCameraButton.addEventListener('click', () => {
+    console.log("Botón de cambio de cámara clickeado.");
+    toggleCamera();
+});
+
+// Función centralizada para cambiar de cámara
+function toggleCamera() {
     if (availableCameraDevices.length > 1) {
         const currentIdx = availableCameraDevices.findIndex(
             device => device.deviceId === currentCameraDeviceId
         );
         const nextIdx = (currentIdx + 1) % availableCameraDevices.length;
         const nextDeviceId = availableCameraDevices[nextIdx].deviceId;
+        console.log('Cambiando de cámara. Actual:', currentCameraDeviceId, 'Siguiente:', nextDeviceId);
         startCamera(nextDeviceId);
     } else {
         console.log("Solo hay una cámara disponible para cambiar.");
+        alert("Solo hay una cámara disponible.");
     }
-});
+}
 
 listCameras();
