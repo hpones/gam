@@ -20,7 +20,6 @@ video, #glcanvas {
   width: 100%;
   height: 100%;
   object-fit: cover;
-  /* Sugerencia al navegador para optimizar transformaciones y opacidad */
   will-change: transform, opacity;
 }
 
@@ -33,7 +32,7 @@ video, #glcanvas {
   gap: 20px;
   z-index: 10;
   opacity: 1;
-  transition: opacity 0.3s ease-out; /* Usar ease-out para transiciones más naturales */
+  transition: opacity 0.3s ease-out;
   will-change: opacity;
 }
 
@@ -47,7 +46,7 @@ video, #glcanvas {
   height: 60px;
   border-radius: 50%;
   border: none;
-  opacity: 0.8; /* Opacidad inicial para los botones */
+  opacity: 0.8;
   transition: opacity 0.3s ease-out;
   will-change: opacity;
 }
@@ -76,7 +75,7 @@ video, #glcanvas {
   border: none;
   font-size: 20px;
   color: white;
-  opacity: 0.8; /* Opacidad inicial para los botones */
+  opacity: 0.8;
   transition: opacity 0.3s ease-out;
   will-change: opacity;
 }
@@ -96,7 +95,7 @@ video, #glcanvas {
   z-index: 10;
   cursor: pointer;
   font-size: 20px;
-  opacity: 0.8; /* Opacidad inicial para el botón */
+  opacity: 0.8;
   transition: opacity 0.3s ease-out;
   will-change: opacity;
 }
@@ -119,7 +118,7 @@ video, #glcanvas {
   padding: 5px;
   border-radius: 5px;
   z-index: 10;
-  transition: opacity 0.3s ease-out; /* Transición para cuando aparece/desaparece */
+  transition: opacity 0.3s ease-out;
   will-change: opacity;
 }
 
@@ -155,70 +154,13 @@ video, #glcanvas {
   cursor: pointer;
 }
 
-#camera-panel {
-  position: absolute;
-  top: 10px;
-  left: 10px;
-  z-index: 10;
-  background: rgba(0,0,0,0.6);
-  padding: 8px;
-  border-radius: 8px;
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  opacity: 1; /* Opacidad normal */
-  transition: opacity 0.3s ease-out, top 0.1s linear, left 0.1s linear; /* Transición suave para opacidad y arrastre */
-  width: 180px;
-  cursor: grab;
-  will-change: top, left, opacity; /* Sugerencia al navegador para optimizar el arrastre y la opacidad */
-}
-
-#camera-container:fullscreen #camera-panel {
-  opacity: 0.2;
-}
-
-#camera-panel.minimized {
-  width: auto;
-  padding: 5px;
-  background: rgba(0,0,0,0.4);
-}
-
-#camera-panel-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  cursor: pointer;
-  color: white;
-  font-weight: bold;
-  font-size: 14px;
-}
-
-#camera-panel-content {
-  display: flex;
-  flex-direction: column;
-  gap: 5px;
-}
-
-#camera-panel-content.hidden {
-  display: none;
-}
-
-#cameraSelect {
-  padding: 5px;
-  border-radius: 3px;
-  border: none;
-  width: 100%;
-}
-
-#switchCameraButton {
-  padding: 5px;
-  border-radius: 3px;
-  border: none;
-  background-color: #007bff;
-  color: white;
-  cursor: pointer;
-}
-
-#switchCameraButton:hover {
-  background-color: #0056b3;
-}
+/* ELIMINAR TODAS ESTAS REGLAS CSS
+#camera-panel { ... }
+#camera-container:fullscreen #camera-panel { ... }
+#camera-panel.minimized { ... }
+#camera-panel-header { ... }
+#camera-panel-content { ... }
+#camera-panel-content.hidden { ... }
+#cameraSelect { ... }
+#switchCameraButton { ... }
+*/
