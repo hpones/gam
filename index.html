@@ -9,7 +9,10 @@
 <body>
   <div id="camera-container">
     <video id="video" autoplay playsinline muted></video>
-    <canvas id="glcanvas"></canvas> <canvas id="canvas" style="display:none;"></canvas> <div id="controls">
+    <canvas id="glcanvas"></canvas>
+    <canvas id="canvas" style="display:none;"></canvas>
+
+    <div id="controls">
       <button id="capture-button" class="circle white"></button>
       <button id="record-button" class="circle red"></button>
       <button id="filter-button" class="circle yellow"></button>
@@ -30,13 +33,12 @@
         <option value="sepia">Sepia</option>
         <option value="eco-pink">Eco pink</option>
         <option value="weird">Weird</option>
-      </select>
+        <option value="glow-outline">Glow Contorno</option> </select>
     </div>
 
-    </div>
-
-  <div id="gallery">
-    </div>
+    <div id="gallery">
+      </div>
+  </div>
 
   <script src="app.js"></script>
 </body>
