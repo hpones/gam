@@ -32,7 +32,7 @@ let videoTexture; // Textura donde se cargará el fotograma del video
 let filterTypeLocation; // Ubicación del uniform para el tipo de filtro
 let timeLocation; // Ubicación del uniform para el tiempo (para efectos dinámicos)
 
-// --- VARIABLES Y CONFIGURACIÓN DE AUDIO ---
+// --- VARIABLES Y CONFIGURACIÓN DE AUDIO (existente del filtro anterior) ---
 let audioContext;
 let analyser;
 let microphone;
@@ -49,6 +49,11 @@ const palettes = [
     [0.0, 1.0, 1.0],    // Cyan
 ];
 let colorShiftUniformLocation; // Ubicación del uniform para el color de la paleta
+
+// --- NUEVOS UNIFORMS PARA EL FILTRO MODULAR COLOR SHIFT ---
+let bassAmpUniformLocation;
+let midAmpUniformLocation;
+let highAmpUniformLocation;
 
 // Vertex Shader: define la posición de los vértices y las coordenadas de textura
 const vsSource = `
@@ -72,7 +77,12 @@ const fsSource = `
     uniform int u_filterType; // Nuevo uniform para seleccionar el filtro
     uniform vec2 u_resolution; // Nuevo uniform para la resolución del canvas
     uniform float u_time; // Nuevo uniform para el tiempo, para efectos dinámicos
-    uniform vec3 u_colorShift; // Nuevo uniform para el filtro de cambio de color por audio
+    uniform vec3 u_colorShift; // Uniform para el filtro de cambio de color por audio
+
+    // NUEVOS UNIFORMS PARA EL FILTRO MODULAR COLOR SHIFT
+    uniform float u_bassAmp;
+    uniform float u_midAmp;
+    uniform float u_highAmp;
 
     varying vec2 v_texCoord;
 
@@ -85,7 +95,8 @@ const fsSource = `
     const int FILTER_WEIRD = 5;
     const int FILTER_GLOW_OUTLINE = 6;
     const int FILTER_ANGELICAL_GLITCH = 7;
-    const int FILTER_AUDIO_COLOR_SHIFT = 8; // Nuevo filtro
+    const int FILTER_AUDIO_COLOR_SHIFT = 8;
+    const int FILTER_MODULAR_COLOR_SHIFT = 9; // Nuevo filtro
 
     // Función para generar ruido básico (copiada de tu fragShader anterior)
     float random(vec2 st) {
@@ -184,10 +195,25 @@ const fsSource = `
                 finalColor = distorted.rgb;
             }
             alpha = col.a;
-        } else if (u_filterType == FILTER_AUDIO_COLOR_SHIFT) { // Lógica del nuevo filtro "Audio Color Shift"
-            // Suma el color de la paleta y aplica un módulo para que los colores se "envuelvan"
+        } else if (u_filterType == FILTER_AUDIO_COLOR_SHIFT) { 
             finalColor = mod(color.rgb + u_colorShift, 1.0);
-            // alpha permanece color.a
+        } else if (u_filterType == FILTER_MODULAR_COLOR_SHIFT) { // Lógica del nuevo filtro "Modular Color Shift"
+            // Paletas de color (normalizadas de 0-255 a 0-1)
+            const vec3 palette0 = vec3(80.0/255.0, 120.0/255.0, 180.0/255.0); // Graves
+            const vec3 palette1 = vec3(100.0/255.0, 180.0/255.0, 200.0/255.0); // Medios
+            const vec3 palette2 = vec3(120.0/255.0, 150.0/255.0, 255.0/255.0); // Agudos
+
+            float brightness_val = (color.r + color.g + color.b) / 3.0; // Brillo normalizado del píxel
+
+            // Umbrales de brillo (normalizados de 0-255 a 0-1)
+            if (brightness_val > (170.0/255.0)) { // Si es muy brillante (corresponde a "agudos")
+                finalColor.rgb = mix(color.rgb, palette2, u_highAmp);
+            } else if (brightness_val > (100.0/255.0)) { // Si es de brillo medio (corresponde a "medios")
+                finalColor.rgb = mix(color.rgb, palette1, u_midAmp);
+            } else { // Si es de brillo bajo (corresponde a "graves")
+                finalColor.rgb = mix(color.rgb, palette0, u_bassAmp);
+            }
+            finalColor.rgb = clamp(finalColor.rgb, 0.0, 1.0); // Asegurarse de que los colores estén en el rango 0-1
         }
 
         gl_FragColor = vec4(finalColor, alpha);
@@ -290,6 +316,11 @@ function initWebGL() {
     program.resolutionLocation = gl.getUniformLocation(program, 'u_resolution'); // Obtener ubicación del uniform de resolución
     timeLocation = gl.getUniformLocation(program, 'u_time'); // Obtener ubicación del uniform de tiempo
     colorShiftUniformLocation = gl.getUniformLocation(program, 'u_colorShift'); // Obtener ubicación del uniform para el cambio de color
+
+    // Obtener ubicaciones para los nuevos uniforms del filtro modular
+    bassAmpUniformLocation = gl.getUniformLocation(program, 'u_bassAmp');
+    midAmpUniformLocation = gl.getUniformLocation(program, 'u_midAmp');
+    highAmpUniformLocation = gl.getUniformLocation(program, 'u_highAmp');
 
     gl.enableVertexAttribArray(program.positionLocation);
     gl.enableVertexAttribArray(program.texCoordLocation);
@@ -435,7 +466,7 @@ function drawVideoFrame() {
         return;
     }
 
-    // --- Detección de nivel de audio ---
+    // --- Detección de nivel de audio (solo si el filtro de audio está seleccionado) ---
     if (analyser && dataArray && selectedFilter === 'audio-color-shift') {
         analyser.getByteFrequencyData(dataArray); // O `getByteTimeDomainData` para la forma de onda
         let sum = 0;
@@ -465,12 +496,25 @@ function drawVideoFrame() {
     gl.uniform2f(program.resolutionLocation, glcanvas.width, glcanvas.height);
     
     // Pasar el tiempo al shader (en segundos)
-    gl.uniform1f(timeLocation, performance.now() / 1000.0);
+    const currentTime = performance.now() / 1000.0;
+    gl.uniform1f(timeLocation, currentTime);
 
     // Pasar el color de la paleta actual al shader si el filtro activo es 'audio-color-shift'
     if (selectedFilter === 'audio-color-shift') {
         const currentColor = palettes[paletteIndex];
         gl.uniform3fv(colorShiftUniformLocation, new Float32Array(currentColor));
+    }
+
+    // --- Pasar "amplitudes" basadas en tiempo para el filtro Modular Color Shift ---
+    if (selectedFilter === 'modular-color-shift') {
+        // Generar valores pulsantes usando seno y mapearlos a los rangos deseados
+        const bassAmp = mapValue(Math.sin(currentTime * 0.8 + 0), -1, 1, 0.0, 2.0); // 0-2.0
+        const midAmp = mapValue(Math.sin(currentTime * 1.2 + Math.PI / 3), -1, 1, 0.0, 1.5); // 0-1.5
+        const highAmp = mapValue(Math.sin(currentTime * 1.5 + Math.PI * 2 / 3), -1, 1, 0.0, 2.5); // 0-2.5
+
+        gl.uniform1f(bassAmpUniformLocation, bassAmp);
+        gl.uniform1f(midAmpUniformLocation, midAmp);
+        gl.uniform1f(highAmpUniformLocation, highAmp);
     }
 
     let filterIndex = 0; // FILTER_NONE por defecto
@@ -482,13 +526,19 @@ function drawVideoFrame() {
         case 'weird': filterIndex = 5; break;     // FILTER_WEIRD
         case 'glow-outline': filterIndex = 6; break; // Filtro Glow con contorno
         case 'angelical-glitch': filterIndex = 7; break; // Filtro Angelical Glitch
-        case 'audio-color-shift': filterIndex = 8; break; // Nuevo filtro Audio Color Shift
+        case 'audio-color-shift': filterIndex = 8; break; // Filtro Audio Color Shift
+        case 'modular-color-shift': filterIndex = 9; break; // Nuevo filtro Modular Color Shift
         default: filterIndex = 0; break;
     }
     gl.uniform1i(filterTypeLocation, filterIndex);
 
     gl.drawArrays(gl.TRIANGLES, 0, 6);
     requestAnimationFrame(drawVideoFrame);
+}
+
+// Función auxiliar para mapear un valor de un rango a otro
+function mapValue(value, inMin, inMax, outMin, outMax) {
+    return (value - inMin) * (outMax - outMin) / (inMax - inMin) + outMin;
 }
 
 
@@ -687,7 +737,7 @@ function toggleCamera() {
     }
 }
 
-// Función para cambiar el índice de la paleta
+// Función para cambiar el índice de la paleta (para filtro de audio)
 function changePaletteIndex() {
     paletteIndex = (paletteIndex + 1) % palettes.length;
     console.log('Paleta cambiada a índice:', paletteIndex, ' Color:', palettes[paletteIndex]);
