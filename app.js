@@ -181,7 +181,8 @@ function updateVideoTexture(gl, video) {
 
 // --- FUNCIÓN DE INICIALIZACIÓN WEBG L ---
 function initWebGL() {
-    gl = glcanvas.getContext('webgl');
+    // CAMBIO AQUI: Añadir { preserveDrawingBuffer: true }
+    gl = glcanvas.getContext('webgl', { preserveDrawingBuffer: true }); 
     if (!gl) {
         alert('Tu navegador no soporta WebGL. No se podrán aplicar filtros avanzados.');
         console.error('WebGL no soportado.');
