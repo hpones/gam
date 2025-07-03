@@ -153,11 +153,3 @@ video, #glcanvas {
   padding: 2px 6px;
   cursor: pointer;
 }
-
-/* ELIMINAR TODOS ESTOS ESTILOS DE ZOOM
-#zoom-control { ... }
-#camera-container:fullscreen #zoom-control { ... }
-#zoom-slider { ... }
-#zoom-slider::-webkit-slider-thumb { ... }
-#zoom-value { ... }
-*/
