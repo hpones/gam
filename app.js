@@ -521,13 +521,13 @@ function addToGallery(element, type) {
   };
 
   actions.appendChild(downloadBtn);
-  if (navigator.share) { // Solo añadir el botón de compartir si la API está disponible
+  if (navigator.share) {
     actions.appendChild(shareBtn);
   }
   actions.appendChild(deleteBtn);
   container.appendChild(actions);
 
-  gallery.prepend(container); // Añadir al principio de la galería
+  gallery.prepend(container);
 }
 
 // --- LÓGICA DE DOBLE TAP/CLICK PARA CAMBIAR DE CÁMARA ---
@@ -545,7 +545,7 @@ glcanvas.addEventListener('touchend', (event) => {
         toggleCamera();
     }
     lastTap = currentTime;
-}, { passive: false }); // Usar { passive: false } para permitir preventDefault
+}, { passive: false });
 
 glcanvas.addEventListener('dblclick', () => {
     console.log("Evento 'dblclick' en glcanvas.");
@@ -568,5 +568,4 @@ function toggleCamera() {
     }
 }
 
-// Iniciar el proceso de listar cámaras y obtener el stream
 listCameras();
