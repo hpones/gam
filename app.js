@@ -19,7 +19,7 @@ let mediaRecorder;
 let chunks = [];
 let isRecording = false;
 let isPaused = false;
-let selectedFilter = 'none'; // Este se usará para cuando implementemos los filtros GLSL
+let selectedFilter = 'none'; // Este se usará para seleccionar el filtro en GLSL
 let currentCameraDeviceId = null;
 let currentFacingMode = null; // 'user' (frontal) o 'environment' (trasera)
 
@@ -29,36 +29,80 @@ let program; // Programa de shaders
 let positionBuffer; // Buffer para las posiciones de los vértices
 let texCoordBuffer; // Buffer para las coordenadas de textura
 let videoTexture; // Textura donde se cargará el fotograma del video
+let filterTypeLocation; // Ubicación del uniform para el tipo de filtro
 
-// Shaders GLSL (en cadenas de texto)
 // Vertex Shader: define la posición de los vértices y las coordenadas de textura
 const vsSource = `
-    attribute vec4 a_position; // Posición del vértice (x, y)
-    attribute vec2 a_texCoord; // Coordenadas de textura (u, v)
+    attribute vec4 a_position;
+    attribute vec2 a_texCoord;
 
-    varying vec2 v_texCoord; // Pasa las coordenadas de textura al Fragment Shader
+    varying vec2 v_texCoord;
 
     void main() {
-        gl_Position = a_position; // Establece la posición final del vértice
-        v_texCoord = a_texCoord; // Pasa las coordenadas de textura sin modificar
+        gl_Position = a_position;
+        v_texCoord = a_texCoord;
     }
 `;
 
-// Fragment Shader: define el color de cada píxel
+// Fragment Shader: define el color de cada píxel, ahora con lógica de filtros
 const fsSource = `
-    precision mediump float; // Define la precisión de los flotantes
+    precision mediump float;
 
-    uniform sampler2D u_image; // La textura de video
-    uniform bool u_flipX; // Uniform para voltear horizontalmente
+    uniform sampler2D u_image;
+    uniform bool u_flipX;
+    uniform int u_filterType; // Nuevo uniform para seleccionar el filtro
 
-    varying vec2 v_texCoord; // Coordenadas de textura interpoladas del Vertex Shader
+    varying vec2 v_texCoord;
+
+    // Enumeración de filtros (coincide con los índices en JavaScript)
+    const int FILTER_NONE = 0;
+    const int FILTER_GRAYSCALE = 1;
+    const int FILTER_INVERT = 2;
+    const int FILTER_SEPIA = 3;
+    const int FILTER_ECO_PINK = 4;
+    const int FILTER_WEIRD = 5;
 
     void main() {
         vec2 texCoord = v_texCoord;
         if (u_flipX) {
             texCoord.x = 1.0 - texCoord.x; // Voltear horizontalmente
         }
-        gl_FragColor = texture2D(u_image, texCoord); // Obtiene el color de la textura en las coordenadas dadas
+        vec4 color = texture2D(u_image, texCoord); // Color original del píxel
+
+        if (u_filterType == FILTER_GRAYSCALE) {
+            float brightness = (color.r * 0.2126 + color.g * 0.7152 + color.b * 0.0722);
+            color = vec4(brightness, brightness, brightness, color.a);
+        } else if (u_filterType == FILTER_INVERT) {
+            color = vec4(1.0 - color.r, 1.0 - color.g, 1.0 - color.b, color.a);
+        } else if (u_filterType == FILTER_SEPIA) {
+            float r = color.r;
+            float g = color.g;
+            float b = color.b;
+            color.r = (r * 0.393) + (g * 0.769) + (b * 0.189);
+            color.g = (r * 0.349) + (g * 0.686) + (b * 0.168);
+            color.b = (r * 0.272) + (g * 0.534) + (b * 0.131);
+            color = clamp(color, 0.0, 1.0); // Asegurarse de que los valores estén en el rango [0, 1]
+        } else if (u_filterType == FILTER_ECO_PINK) {
+            float brightness = (color.r + color.g + color.b) / 3.0;
+            if (brightness < 0.3137) { // 80 / 255 = 0.3137
+                color.r = min(1.0, color.r + (80.0/255.0));
+                color.g = max(0.0, color.g - (50.0/255.0));
+                color.b = min(1.0, color.b + (100.0/255.0));
+            }
+        } else if (u_filterType == FILTER_WEIRD) {
+            float brightness = (color.r + color.g + color.b) / 3.0;
+            if (brightness > 0.7058) { // 180 / 255 = 0.7058
+                // Intercambiar canales R, G, B
+                float temp_r = color.r;
+                color.r = color.b;
+                color.b = color.g;
+                color.g = temp_r;
+            } else if (brightness < 0.3921) { // 100 / 255 = 0.3921
+                // Reducir brillo
+                color.rgb *= 0.5;
+            }
+        }
+        gl_FragColor = color;
     }
 `;
 
@@ -93,7 +137,6 @@ function createProgram(gl, vertexShader, fragmentShader) {
 
 // Configura los buffers de un cuadrado que llena el canvas
 function setupQuadBuffers(gl) {
-    // Coordenadas de los vértices para un cuadrado que cubre todo el espacio de clip
     const positions = new Float32Array([
         -1, -1,
          1, -1,
@@ -106,14 +149,13 @@ function setupQuadBuffers(gl) {
     gl.bindBuffer(gl.ARRAY_BUFFER, positionBuffer);
     gl.bufferData(gl.ARRAY_BUFFER, positions, gl.STATIC_DRAW);
 
-    // Coordenadas de textura (mapean los vértices del cuadrado a la textura completa)
     const texCoords = new Float32Array([
-        0, 1, // Esquina inferior izquierda del video
-        1, 1, // Esquina inferior derecha del video
-        0, 0, // Esquina superior izquierda del video
-        0, 0, // Duplicado para formar el segundo triángulo
+        0, 1,
         1, 1,
-        1, 0, // Esquina superior derecha del video
+        0, 0,
+        0, 0,
+        1, 1,
+        1, 0,
     ]);
     texCoordBuffer = gl.createBuffer();
     gl.bindBuffer(gl.ARRAY_BUFFER, texCoordBuffer);
@@ -125,7 +167,6 @@ function setupVideoTexture(gl) {
     videoTexture = gl.createTexture();
     gl.bindTexture(gl.TEXTURE_2D, videoTexture);
 
-    // Configuración para que WebGL no intente hacer mipmaps y pueda manejar cualquier tamaño
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
@@ -146,37 +187,33 @@ function initWebGL() {
         return;
     }
 
-    // Compilar y enlazar shaders
     const vertexShader = compileShader(gl, vsSource, gl.VERTEX_SHADER);
     const fragmentShader = compileShader(gl, fsSource, gl.FRAGMENT_SHADER);
     program = createProgram(gl, vertexShader, fragmentShader);
     gl.useProgram(program);
 
-    // Obtener las ubicaciones de los atributos y uniforms
     program.positionLocation = gl.getAttribLocation(program, 'a_position');
     program.texCoordLocation = gl.getAttribLocation(program, 'a_texCoord');
     program.imageLocation = gl.getUniformLocation(program, 'u_image');
-    program.flipXLocation = gl.getUniformLocation(program, 'u_flipX'); // Ubicación del uniform u_flipX
+    program.flipXLocation = gl.getUniformLocation(program, 'u_flipX');
+    filterTypeLocation = gl.getUniformLocation(program, 'u_filterType'); // Obtener ubicación del uniform del filtro
 
-    // Habilitar los atributos
     gl.enableVertexAttribArray(program.positionLocation);
     gl.enableVertexAttribArray(program.texCoordLocation);
 
-    // Configurar buffers
     setupQuadBuffers(gl);
-
-    // Configurar textura de video
     setupVideoTexture(gl);
 
-    // Asociar buffers con los atributos en el programa
     gl.bindBuffer(gl.ARRAY_BUFFER, positionBuffer);
     gl.vertexAttribPointer(program.positionLocation, 2, gl.FLOAT, false, 0, 0);
 
     gl.bindBuffer(gl.ARRAY_BUFFER, texCoordBuffer);
     gl.vertexAttribPointer(program.texCoordLocation, 2, gl.FLOAT, false, 0, 0);
 
-    // Decirle a WebGL en qué unidad de textura está nuestra imagen (unidad 0)
     gl.uniform1i(program.imageLocation, 0);
+
+    // Establecer el filtro inicial (sin filtro)
+    gl.uniform1i(filterTypeLocation, 0); // 0 = FILTER_NONE
 }
 
 
@@ -229,19 +266,17 @@ async function startCamera(deviceId) {
 
     video.onloadedmetadata = () => {
       video.play();
-      // Asegurarse de que el canvas WebGL tenga el mismo tamaño que el video
       if (glcanvas.width !== video.videoWidth || glcanvas.height !== video.videoHeight) {
         glcanvas.width = video.videoWidth;
         glcanvas.height = video.videoHeight;
-        if (gl) { // Asegurarse de que gl esté inicializado antes de actualizar el viewport
+        if (gl) {
           gl.viewport(0, 0, glcanvas.width, glcanvas.height);
         }
       }
-      // Inicializar WebGL si aún no se ha hecho
       if (!gl) {
         initWebGL();
       }
-      drawVideoFrame(); // Iniciar el bucle de renderizado WebGL
+      drawVideoFrame();
     };
   } catch (err) {
     console.error('No se pudo acceder a la cámara:', err);
@@ -257,21 +292,29 @@ function drawVideoFrame() {
     }
 
     if (video.readyState === video.HAVE_ENOUGH_DATA) {
-        // Actualizar la textura con el fotograma actual del video
         updateVideoTexture(gl, video);
 
-        // Limpiar el canvas
-        gl.clearColor(0.0, 0.0, 0.0, 1.0); // Fondo negro
+        gl.clearColor(0.0, 0.0, 0.0, 1.0);
         gl.clear(gl.COLOR_BUFFER_BIT);
 
-        // Usar nuestro programa de shaders
         gl.useProgram(program);
 
-        // Pasar el uniform para voltear si es cámara frontal
         const isFrontFacing = currentFacingMode === 'user';
         gl.uniform1i(program.flipXLocation, isFrontFacing ? 1 : 0);
 
-        // Dibujar el cuadrado
+        // Asegurarse de que el uniform del filtro esté siempre actualizado
+        // Mapear el string del filtro a un número para el shader
+        let filterIndex = 0; // FILTER_NONE por defecto
+        switch (selectedFilter) {
+            case 'grayscale': filterIndex = 1; break; // FILTER_GRAYSCALE
+            case 'invert': filterIndex = 2; break;    // FILTER_INVERT
+            case 'sepia': filterIndex = 3; break;     // FILTER_SEPIA
+            case 'eco-pink': filterIndex = 4; break;  // FILTER_ECO_PINK
+            case 'weird': filterIndex = 5; break;     // FILTER_WEIRD
+            default: filterIndex = 0; break;
+        }
+        gl.uniform1i(filterTypeLocation, filterIndex);
+
         gl.drawArrays(gl.TRIANGLES, 0, 6);
     }
     requestAnimationFrame(drawVideoFrame);
@@ -280,25 +323,14 @@ function drawVideoFrame() {
 
 // --- MANEJADORES DE EVENTOS ---
 captureBtn.addEventListener('click', () => {
-    // Para la captura de imágenes estáticas, usamos un canvas 2D separado
-    // y dibujamos directamente desde el elemento de video.
-    // NOTA: Los filtros de WebGL NO se aplicarán en la captura hasta que sean reimplementados en GLSL
-    // y la captura se haga desde el glcanvas.
-    canvas.width = video.videoWidth;
-    canvas.height = video.videoHeight;
+    // Ahora que WebGL aplica los filtros en glcanvas, podemos capturar desde glcanvas
+    canvas.width = glcanvas.width;
+    canvas.height = glcanvas.height;
     let ctx = canvas.getContext('2d');
 
-    // Manejar el espejo para cámaras frontales en la captura (si se desea)
-    const isFrontFacing = currentFacingMode === 'user';
-    if (isFrontFacing) {
-        ctx.translate(canvas.width, 0);
-        ctx.scale(-1, 1);
-    }
-    ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-    if (isFrontFacing) { // Restaurar el contexto si se ha volteado
-        ctx.restore();
-    }
-
+    // Dibujar el contenido de glcanvas (que ya tiene el filtro WebGL aplicado)
+    // No necesitamos aplicar filtros 2D aquí ni voltear, ya lo hizo WebGL.
+    ctx.drawImage(glcanvas, 0, 0, canvas.width, canvas.height);
 
     let img = new Image();
     img.src = canvas.toDataURL('image/png');
@@ -308,8 +340,7 @@ captureBtn.addEventListener('click', () => {
 recordBtn.addEventListener('click', () => {
   if (!isRecording) {
     chunks = [];
-    // captureStream() funciona con el glcanvas WebGL
-    let streamToRecord = glcanvas.captureStream();
+    let streamToRecord = glcanvas.captureStream(); // Captura desde el glcanvas con filtro WebGL
     mediaRecorder = new MediaRecorder(streamToRecord, { mimeType: 'video/webm; codecs=vp8' });
 
     mediaRecorder.ondataavailable = e => {
@@ -358,7 +389,7 @@ filterBtn.addEventListener('click', () => {
 filterSelect.addEventListener('change', () => {
   selectedFilter = filterSelect.value;
   filtersDropdown.style.display = 'none';
-  // Aquí es donde en el futuro, un cambio de filtro actualizaría un uniform en el shader GLSL
+  // El uniform u_filterType se actualizará en drawVideoFrame() en el siguiente fotograma
 });
 
 fullscreenBtn.addEventListener('click', () => {
@@ -452,7 +483,6 @@ video.addEventListener('touchend', (event) => {
     lastTap = currentTime;
 });
 
-// También mantén el dblclick para desktop
 video.addEventListener('dblclick', () => {
     if (availableCameraDevices.length > 1) {
         const currentIdx = availableCameraDevices.findIndex(
