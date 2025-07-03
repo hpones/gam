@@ -104,7 +104,7 @@ video, #glcanvas {
   justify-content: center;
   /* Asegurar que la galería se muestra correctamente y con scroll si es necesario */
   width: 100%;
-  min-height: 100px; /* Un poco de altura inicial */
+  min-height: 100px; /* Un poco de altura inicial para que sea visible */
   box-sizing: border-box; /* Incluir padding en el ancho */
 }
 
@@ -120,7 +120,7 @@ video, #glcanvas {
 }
 
 .gallery-item img, .gallery-item video {
-  max-width: 200px;
+  max-width: 200px; /* Tamaño máximo para los elementos de la galería */
   max-height: 150px;
   display: block;
   border-radius: 3px;
@@ -160,3 +160,5 @@ video, #glcanvas {
 #camera-container:fullscreen #filters-dropdown {
   opacity: 0.2; /* Reduce opacidad en fullscreen */
 }
+
+/* ELIMINAMOS los estilos para #camera-select-container, #camera-select-container select, y #camera-select-container button */
