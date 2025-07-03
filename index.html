@@ -9,10 +9,7 @@
 <body>
   <div id="camera-container">
     <video id="video" autoplay playsinline muted></video>
-    <canvas id="glcanvas"></canvas>
-    <canvas id="canvas" style="display:none;"></canvas>
-
-    <div id="controls">
+    <canvas id="glcanvas"></canvas> <canvas id="canvas" style="display:none;"></canvas> <div id="controls">
       <button id="capture-button" class="circle white"></button>
       <button id="record-button" class="circle red"></button>
       <button id="filter-button" class="circle yellow"></button>
@@ -36,11 +33,11 @@
       </select>
     </div>
 
-    <button id="switch-camera-button" class="circle small gray">🔄</button>
+    </div>
 
-    <div id="gallery">
-      </div>
-  </div>
+  <div id="gallery">
+    </div>
+
   <script src="app.js"></script>
 </body>
 </html>
