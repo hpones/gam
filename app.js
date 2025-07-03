@@ -3,7 +3,7 @@ let glcanvas = document.getElementById('glcanvas');
 let canvas = document.getElementById('canvas');
 let filterSelect = document.getElementById('filterSelect');
 let captureBtn = document.getElementById('capture-button');
-let recordBtn = document = document.getElementById('record-button');
+let recordBtn = document.getElementById('record-button');
 let pauseBtn = document.getElementById('pause-button');
 let stopBtn = document.getElementById('stop-button');
 let fullscreenBtn = document.getElementById('fullscreen-button');
@@ -14,7 +14,9 @@ let controls = document.getElementById('controls');
 let recordingControls = document.getElementById('recording-controls');
 let cameraContainer = document.getElementById('camera-container');
 
-// ELIMINAR REFERENCIAS A ELEMENTOS DEL ZOOM
+// Eliminar referencias a elementos del panel de cámara y zoom
+// let cameraSelect = document.getElementById('cameraSelect');
+// let switchCameraButton = document.getElementById('switchCameraButton');
 // let zoomSlider = document.getElementById('zoom-slider');
 // let zoomValueSpan = document.getElementById('zoom-value');
 
@@ -25,12 +27,14 @@ let isRecording = false;
 let isPaused = false;
 let selectedFilter = 'none';
 let currentCameraDeviceId = null;
-let currentFacingMode = null;
-// ELIMINAR VARIABLE DE ZOOM
-// let currentZoom = 1.0;
+let currentFacingMode = null; // Para la lógica de espejo en cámaras frontales
 
+// Cache del contexto 2D del glcanvas
 const glContext = glcanvas.getContext('2d');
+
+// Array para almacenar los IDs de las cámaras disponibles
 let availableCameraDevices = [];
+
 
 function applyFilterToContext(ctx, filterType) {
   switch (filterType) {
@@ -53,8 +57,8 @@ async function listCameras() {
     const devices = await navigator.mediaDevices.enumerateDevices();
     const videoDevices = devices.filter(device => device.kind === 'videoinput');
 
-    availableCameraDevices = videoDevices;
-
+    availableCameraDevices = videoDevices; // Almacenar los dispositivos de cámara
+    
     if (availableCameraDevices.length > 0) {
       if (!currentCameraDeviceId || !availableCameraDevices.some(d => d.deviceId === currentCameraDeviceId)) {
         currentCameraDeviceId = availableCameraDevices[0].deviceId;
@@ -90,7 +94,7 @@ async function startCamera(deviceId) {
 
     const videoTrack = currentStream.getVideoTracks()[0];
     const settings = videoTrack.getSettings();
-    currentFacingMode = settings.facingMode || 'unknown';
+    currentFacingMode = settings.facingMode || 'unknown'; // Actualizar facingMode
 
     video.onloadedmetadata = () => {
       video.play();
@@ -120,23 +124,13 @@ function drawVideoFrame() {
 
   glContext.save();
 
-  const isFrontFacing = currentFacingMode === 'user' || currentFacingMode === 'unknown';
-
-  // ELIMINAR LÓGICA DE ZOOM DIGITAL
-  // const zoomedWidth = glcanvas.width / currentZoom;
-  // const zoomedHeight = glcanvas.height / currentZoom;
-  // const offsetX = (glcanvas.width - zoomedWidth) / 2;
-  // const offsetY = (glcanvas.height - zoomedHeight) / 2;
+  const isFrontFacing = currentFacingMode === 'user'; // Usar currentFacingMode directamente
 
   if (isFrontFacing) {
     glContext.translate(glcanvas.width, 0);
     glContext.scale(-1, 1);
-    // glContext.drawImage(video, offsetX, offsetY, zoomedWidth, zoomedHeight); // Anterior con zoom
-    glContext.drawImage(video, 0, 0, glcanvas.width, glcanvas.height); // Ahora sin zoom
-  } else {
-    // glContext.drawImage(video, offsetX, offsetY, zoomedWidth, zoomedHeight); // Anterior con zoom
-    glContext.drawImage(video, 0, 0, glcanvas.width, glcanvas.height); // Ahora sin zoom
   }
+  glContext.drawImage(video, 0, 0, glcanvas.width, glcanvas.height);
 
   if (selectedFilter === 'eco-pink' || selectedFilter === 'weird') {
     let imageData = glContext.getImageData(0, 0, glcanvas.width, glcanvas.height);
@@ -177,15 +171,7 @@ captureBtn.addEventListener('click', () => {
 
   if (selectedFilter === 'eco-pink' || selectedFilter === 'weird') {
     ctx.filter = 'none';
-    // ELIMINAR LÓGICA DE ZOOM DIGITAL PARA CAPTURA
-    // const zoomedWidth = canvas.width / currentZoom;
-    // const zoomedHeight = canvas.height / currentZoom;
-    // const offsetX = (canvas.width - zoomedWidth) / 2;
-    // const offsetY = (canvas.height - zoomedHeight) / 2;
-
-    // ctx.drawImage(video, offsetX, offsetY, zoomedWidth, zoomedHeight); // Anterior con zoom
-    ctx.drawImage(video, 0, 0, canvas.width, canvas.height); // Ahora sin zoom
-
+    ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
     let imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
     let data = imageData.data;
     for (let i = 0; i < data.length; i += 4) {
@@ -214,22 +200,12 @@ captureBtn.addEventListener('click', () => {
 
   } else {
     applyFilterToContext(ctx, selectedFilter);
-    const isFrontFacing = currentFacingMode === 'user' || currentFacingMode === 'unknown';
-    // ELIMINAR LÓGICA DE ZOOM DIGITAL PARA CAPTURA
-    // const zoomedWidth = canvas.width / currentZoom;
-    // const zoomedHeight = canvas.height / currentZoom;
-    // const offsetX = (canvas.width - zoomedWidth) / 2;
-    // const offsetY = (canvas.height - zoomedHeight) / 2;
-
+    const isFrontFacing = currentFacingMode === 'user';
     if (isFrontFacing) {
       ctx.translate(canvas.width, 0);
       ctx.scale(-1, 1);
-      // ctx.drawImage(video, offsetX, offsetY, zoomedWidth, zoomedHeight); // Anterior con zoom
-      ctx.drawImage(video, 0, 0, canvas.width, canvas.height); // Ahora sin zoom
-    } else {
-      // ctx.drawImage(video, offsetX, offsetY, zoomedWidth, zoomedHeight); // Anterior con zoom
-      ctx.drawImage(video, 0, 0, canvas.width, canvas.height); // Ahora sin zoom
     }
+    ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
   }
 
   let img = new Image();
@@ -350,7 +326,7 @@ function addToGallery(element, type) {
   };
 
   actions.appendChild(downloadBtn);
-  if (navigator.share) {
+  if (navigator.share) { // Solo añadir el botón de compartir si la API está disponible
     actions.appendChild(shareBtn);
   }
   actions.appendChild(deleteBtn);
@@ -398,12 +374,5 @@ video.addEventListener('dblclick', () => {
         console.log("Solo hay una cámara disponible para cambiar.");
     }
 });
-
-
-// ELIMINAR LÓGICA DE CONTROL DE ZOOM
-// zoomSlider.addEventListener('input', () => {
-//   currentZoom = parseFloat(zoomSlider.value);
-//   zoomValueSpan.textContent = currentZoom.toFixed(1) + 'x';
-// });
 
 listCameras();
