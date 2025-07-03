@@ -37,7 +37,12 @@ video, #glcanvas {
   height: 60px;
   border-radius: 50%;
   border: none;
-  opacity: 0.8;
+  opacity: 0.7; /* Added opacity */
+  transition: opacity 0.3s ease; /* Smooth transition for opacity */
+}
+
+.circle:hover {
+  opacity: 1; /* Full opacity on hover for better UX */
 }
 
 .white {
@@ -60,7 +65,12 @@ video, #glcanvas {
   border: none;
   font-size: 20px;
   color: white;
-  opacity: 0.8;
+  opacity: 0.7; /* Added opacity */
+  transition: opacity 0.3s ease; /* Smooth transition for opacity */
+}
+
+.small.gray:hover {
+  opacity: 1; /* Full opacity on hover */
 }
 
 #fullscreen-button {
@@ -74,6 +84,12 @@ video, #glcanvas {
   z-index: 10;
   cursor: pointer;
   font-size: 20px;
+  opacity: 0.7; /* Added opacity */
+  transition: opacity 0.3s ease; /* Smooth transition for opacity */
+}
+
+#fullscreen-button:hover {
+  opacity: 1; /* Full opacity on hover */
 }
 
 #filters-dropdown {
@@ -120,21 +136,69 @@ video, #glcanvas {
   cursor: pointer;
 }
 
-#camera-select-container {
+/* Styles for the new movable/collapsible camera panel */
+#camera-panel {
   position: absolute;
   top: 10px;
   left: 10px;
   z-index: 10;
-  background: rgba(0,0,0,0.4);
-  padding: 5px;
-  border-radius: 5px;
+  background: rgba(0,0,0,0.6); /* Slightly more opaque background for the panel */
+  padding: 8px;
+  border-radius: 8px;
   display: flex;
+  flex-direction: column; /* Arrange items vertically */
+  gap: 8px;
+  opacity: 0.9; /* Opacity for the panel */
+  transition: opacity 0.3s ease; /* Smooth transition for opacity */
+  width: 180px; /* Fixed width for the panel */
+}
+
+#camera-panel:hover {
+  opacity: 1;
+}
+
+#camera-panel.minimized {
+  width: auto; /* Adjust width when minimized */
+  padding: 5px;
+  background: rgba(0,0,0,0.4);
+}
+
+#camera-panel-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  cursor: pointer; /* Indicate it's clickable */
+  color: white;
+  font-weight: bold;
+  font-size: 14px;
+}
+
+#camera-panel-content {
+  display: flex;
+  flex-direction: column;
   gap: 5px;
 }
 
-#camera-select-container select,
-#camera-select-container button {
+#camera-panel-content.hidden {
+  display: none;
+}
+
+#cameraSelect {
   padding: 5px;
   border-radius: 3px;
   border: none;
+  width: 100%; /* Make select fill the panel width */
+}
+
+#switchCameraButton {
+  padding: 5px;
+  border-radius: 3px;
+  border: none;
+  background-color: #007bff; /* Example button color */
+  color: white;
+  cursor: pointer;
+}
+
+#switchCameraButton:hover {
+  background-color: #0056b3;
 }
