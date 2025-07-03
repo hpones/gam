@@ -3,26 +3,37 @@ body {
   background: #000;
   font-family: sans-serif;
   overflow-x: hidden;
-  /* Permitir scroll si la galería es grande */
-  overflow-y: auto; 
 }
 
 #camera-container {
   position: relative;
   width: 100%;
   max-width: 100vw;
-  height: 100vh; /* Ocupa el 100% del viewport */
-  overflow: hidden; /* Asegura que el video/canvas no se desborden */
+  height: 100vh; /* Ocupa la altura completa de la ventana */
+  overflow: hidden; /* Asegura que no haya desbordamiento dentro del contenedor de la cámara */
+  display: flex; /* Usamos flexbox para organizar la cámara y la galería */
+  flex-direction: column; /* Apila los elementos verticalmente */
 }
 
 video, #glcanvas {
-  position: absolute;
-  top: 0;
-  left: 0;
+  /* No necesitas 'position: absolute' si usas flexbox principal para la cámara */
   width: 100%;
-  height: 100%;
+  height: 100%; /* Ocupa la altura restante dentro del contenedor */
   object-fit: cover;
+  flex-shrink: 0; /* Evita que la cámara se encoja */
 }
+
+/* Si quieres que la cámara ocupe solo una parte de la altura y la galería otra */
+/* Puedes ajustar aquí, por ejemplo:
+#camera-container {
+  height: auto; // O una altura fija como 80vh
+}
+video, #glcanvas {
+  flex-grow: 1; // Para que ocupe el espacio disponible
+  height: auto;
+}
+*/
+
 
 #controls, #recording-controls {
   position: absolute;
@@ -40,6 +51,7 @@ video, #glcanvas {
   border-radius: 50%;
   border: none;
   opacity: 0.8;
+  cursor: pointer;
 }
 
 .white {
@@ -54,7 +66,7 @@ video, #glcanvas {
   background: yellow;
 }
 
-.small.gray { 
+.small.gray {
   width: 40px;
   height: 40px;
   border-radius: 50%;
@@ -63,9 +75,7 @@ video, #glcanvas {
   font-size: 20px;
   color: white;
   opacity: 0.8;
-  display: flex;
-  justify-content: center;
-  align-items: center;
+  cursor: pointer;
 }
 
 #fullscreen-button {
@@ -93,72 +103,69 @@ video, #glcanvas {
   z-index: 10;
 }
 
-/* Galería: Ahora posicionada fuera del camera-container en HTML,
-   por lo que solo necesita estilos de layout. */
+#filterSelect {
+  padding: 5px;
+  border-radius: 3px;
+  border: 1px solid #ccc;
+  background: white;
+}
+
+/* Estilos para la galería */
 #gallery {
+  /* Ya no necesita position: absolute si está fuera del contenedor de la cámara */
   padding: 10px;
-  background: #111;
+  background: #111; /* Un color oscuro para que se note la galería */
   display: flex;
-  flex-wrap: wrap;
-  gap: 10px;
-  justify-content: center;
-  /* Asegurar que la galería se muestra correctamente y con scroll si es necesario */
-  width: 100%;
-  min-height: 100px; /* Un poco de altura inicial para que sea visible */
-  box-sizing: border-box; /* Incluir padding en el ancho */
+  flex-wrap: wrap; /* Permite que los elementos se envuelvan en varias filas */
+  gap: 10px; /* Espacio entre los elementos */
+  justify-content: center; /* Centra los elementos horizontalmente */
+  width: 100%; /* Ocupa todo el ancho */
+  min-height: 100px; /* Altura mínima para que sea visible */
+  overflow-y: auto; /* Permite desplazamiento si hay muchos elementos */
+  box-sizing: border-box; /* Incluye padding en el ancho/alto */
 }
 
 .gallery-item {
-  position: relative;
-  border: 1px solid #333;
-  padding: 5px;
-  background: #222;
+  width: 150px; /* Ancho fijo para cada item de galería */
+  height: 100px; /* Altura fija para cada item de galería */
+  border: 1px solid #555;
   border-radius: 5px;
+  overflow: hidden; /* Oculta cualquier parte del contenido que se desborde */
   display: flex;
   flex-direction: column;
-  align-items: center;
+  background: #000;
+  box-shadow: 0 0 5px rgba(0,0,0,0.5);
 }
 
-.gallery-item img, .gallery-item video {
-  max-width: 200px; /* Tamaño máximo para los elementos de la galería */
-  max-height: 150px;
-  display: block;
-  border-radius: 3px;
+.gallery-item img,
+.gallery-item video {
+  width: 100%;
+  height: 70%; /* Ocupa la mayor parte del espacio, dejando espacio para acciones */
+  object-fit: cover; /* Asegura que la imagen/video cubra el espacio sin distorsionarse */
+  display: block; /* Elimina cualquier espacio extra por defecto */
+  flex-shrink: 0; /* No permite que la imagen/video se encoja */
 }
 
 .gallery-actions {
   display: flex;
-  gap: 5px;
-  margin-top: 5px;
+  justify-content: space-around;
+  align-items: center;
+  padding: 5px 0;
+  background: #222;
+  flex-grow: 1; /* Ocupa el espacio restante en el item */
 }
 
 .gallery-actions button {
   background: #444;
   color: white;
   border: none;
-  padding: 5px 10px;
+  padding: 5px 8px;
   border-radius: 3px;
+  font-size: 0.75em;
   cursor: pointer;
+  transition: background 0.3s ease;
 }
 
-/* Reglas para reducir opacidad de los controles en fullscreen */
-#camera-container:-webkit-full-screen #controls,
-#camera-container:-moz-full-screen #controls,
-#camera-container:-ms-fullscreen #controls,
-#camera-container:fullscreen #controls,
-#camera-container:-webkit-full-screen #recording-controls,
-#camera-container:-moz-full-screen #recording-controls,
-#camera-container:-ms-fullscreen #recording-controls,
-#camera-container:fullscreen #recording-controls,
-#camera-container:-webkit-full-screen #filter-button,
-#camera-container:-moz-full-screen #filter-button,
-#camera-container:-ms-fullscreen #filter-button,
-#camera-container:fullscreen #filter-button,
-#camera-container:-webkit-full-screen #filters-dropdown,
-#camera-container:-moz-full-screen #filters-dropdown,
-#camera-container:-ms-fullscreen #filters-dropdown,
-#camera-container:fullscreen #filters-dropdown {
-  opacity: 0.2; /* Reduce opacidad en fullscreen */
+.gallery-actions button:hover {
+  background: #666;
 }
-
-/* ELIMINAMOS los estilos para #camera-select-container, #camera-select-container select, y #camera-select-container button */
