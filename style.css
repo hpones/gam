@@ -20,6 +20,8 @@ video, #glcanvas {
   width: 100%;
   height: 100%;
   object-fit: cover;
+  /* Sugerencia al navegador para optimizar transformaciones y opacidad */
+  will-change: transform, opacity;
 }
 
 #controls, #recording-controls {
@@ -30,15 +32,14 @@ video, #glcanvas {
   justify-content: center;
   gap: 20px;
   z-index: 10;
-  /* Opacidad inicial para los controles */
-  opacity: 1; /* Opacidad normal */
-  transition: opacity 0.3s ease; /* Transición suave */
+  opacity: 1;
+  transition: opacity 0.3s ease-out; /* Usar ease-out para transiciones más naturales */
+  will-change: opacity;
 }
 
-/* Opacidad para los controles cuando está en fullscreen */
 #camera-container:fullscreen #controls,
 #camera-container:fullscreen #recording-controls {
-  opacity: 0.2; /* Menor opacidad en fullscreen */
+  opacity: 0.2;
 }
 
 .circle {
@@ -46,12 +47,13 @@ video, #glcanvas {
   height: 60px;
   border-radius: 50%;
   border: none;
-  opacity: 1; /* Opacidad normal */
-  transition: opacity 0.3s ease;
+  opacity: 0.8; /* Opacidad inicial para los botones */
+  transition: opacity 0.3s ease-out;
+  will-change: opacity;
 }
 
 .circle:hover {
-  opacity: 1; /* Sin cambios en el hover para que la opacidad del fullscreen tome precedencia */
+  opacity: 1;
 }
 
 .white {
@@ -74,12 +76,13 @@ video, #glcanvas {
   border: none;
   font-size: 20px;
   color: white;
-  opacity: 1; /* Opacidad normal */
-  transition: opacity 0.3s ease;
+  opacity: 0.8; /* Opacidad inicial para los botones */
+  transition: opacity 0.3s ease-out;
+  will-change: opacity;
 }
 
 .small.gray:hover {
-  opacity: 1; /* Sin cambios en el hover */
+  opacity: 1;
 }
 
 #fullscreen-button {
@@ -93,17 +96,17 @@ video, #glcanvas {
   z-index: 10;
   cursor: pointer;
   font-size: 20px;
-  opacity: 1; /* Opacidad normal */
-  transition: opacity 0.3s ease;
+  opacity: 0.8; /* Opacidad inicial para el botón */
+  transition: opacity 0.3s ease-out;
+  will-change: opacity;
 }
 
 #fullscreen-button:hover {
-  opacity: 1; /* Sin cambios en el hover */
+  opacity: 1;
 }
 
-/* Opacidad para el botón fullscreen cuando está en fullscreen */
 #camera-container:fullscreen #fullscreen-button {
-  opacity: 0.2; /* Menor opacidad en fullscreen */
+  opacity: 0.2;
 }
 
 #filters-dropdown {
@@ -116,6 +119,8 @@ video, #glcanvas {
   padding: 5px;
   border-radius: 5px;
   z-index: 10;
+  transition: opacity 0.3s ease-out; /* Transición para cuando aparece/desaparece */
+  will-change: opacity;
 }
 
 #gallery {
@@ -150,9 +155,8 @@ video, #glcanvas {
   cursor: pointer;
 }
 
-/* Estilos para el panel de cámara (movible y con opacidad en fullscreen) */
 #camera-panel {
-  position: absolute; /* Esencial para poder moverlo */
+  position: absolute;
   top: 10px;
   left: 10px;
   z-index: 10;
@@ -163,14 +167,14 @@ video, #glcanvas {
   flex-direction: column;
   gap: 8px;
   opacity: 1; /* Opacidad normal */
-  transition: opacity 0.3s ease;
+  transition: opacity 0.3s ease-out, top 0.1s linear, left 0.1s linear; /* Transición suave para opacidad y arrastre */
   width: 180px;
-  cursor: grab; /* Indica que se puede arrastrar */
+  cursor: grab;
+  will-change: top, left, opacity; /* Sugerencia al navegador para optimizar el arrastre y la opacidad */
 }
 
-/* Opacidad para el panel de cámara cuando está en fullscreen */
 #camera-container:fullscreen #camera-panel {
-  opacity: 0.2; /* Menor opacidad en fullscreen */
+  opacity: 0.2;
 }
 
 #camera-panel.minimized {
@@ -183,7 +187,7 @@ video, #glcanvas {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  cursor: pointer; /* Permite minimizar/maximizar */
+  cursor: pointer;
   color: white;
   font-weight: bold;
   font-size: 14px;
