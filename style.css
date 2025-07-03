@@ -3,37 +3,37 @@ body {
   background: #000;
   font-family: sans-serif;
   overflow-x: hidden;
+  display: flex; /* Usamos flexbox para organizar el body */
+  flex-direction: column; /* Apila los elementos (cámara y galería) verticalmente */
+  min-height: 100vh; /* Asegura que el body ocupe toda la altura de la ventana */
 }
 
 #camera-container {
-  position: relative;
+  position: relative; /* Es crucial para el posicionamiento absoluto de sus hijos */
   width: 100%;
-  max-width: 100vw;
-  height: 100vh; /* Ocupa la altura completa de la ventana */
-  overflow: hidden; /* Asegura que no haya desbordamiento dentro del contenedor de la cámara */
-  display: flex; /* Usamos flexbox para organizar la cámara y la galería */
-  flex-direction: column; /* Apila los elementos verticalmente */
+  flex-grow: 1; /* Permite que el contenedor de la cámara tome el espacio disponible */
+  display: flex; /* Ayuda a que video/glcanvas se adapten a su interior */
+  justify-content: center;
+  align-items: center;
+  overflow: hidden; /* Evita desbordamientos si el video tiene una relación de aspecto diferente */
 }
 
 video, #glcanvas {
-  /* No necesitas 'position: absolute' si usas flexbox principal para la cámara */
+  position: absolute; /* Superpone el video y el canvas */
+  top: 0;
+  left: 0;
   width: 100%;
-  height: 100%; /* Ocupa la altura restante dentro del contenedor */
-  object-fit: cover;
-  flex-shrink: 0; /* Evita que la cámara se encoja */
+  height: 100%;
+  object-fit: cover; /* Asegura que el video/canvas cubra el espacio sin distorsionarse */
 }
 
-/* Si quieres que la cámara ocupe solo una parte de la altura y la galería otra */
-/* Puedes ajustar aquí, por ejemplo:
-#camera-container {
-  height: auto; // O una altura fija como 80vh
+#glcanvas {
+  z-index: 2; /* Asegura que el canvas WebGL esté encima del video */
 }
-video, #glcanvas {
-  flex-grow: 1; // Para que ocupe el espacio disponible
-  height: auto;
-}
-*/
 
+video {
+  z-index: 1; /* El video estará detrás del canvas */
+}
 
 #controls, #recording-controls {
   position: absolute;
@@ -42,7 +42,7 @@ video, #glcanvas {
   display: flex;
   justify-content: center;
   gap: 20px;
-  z-index: 10;
+  z-index: 10; /* Asegura que los controles estén encima de todo */
 }
 
 .circle {
@@ -112,7 +112,7 @@ video, #glcanvas {
 
 /* Estilos para la galería */
 #gallery {
-  /* Ya no necesita position: absolute si está fuera del contenedor de la cámara */
+  /* Ahora que camera-container tiene flex-grow: 1, gallery puede tomar su propio espacio */
   padding: 10px;
   background: #111; /* Un color oscuro para que se note la galería */
   display: flex;
@@ -120,19 +120,20 @@ video, #glcanvas {
   gap: 10px; /* Espacio entre los elementos */
   justify-content: center; /* Centra los elementos horizontalmente */
   width: 100%; /* Ocupa todo el ancho */
-  min-height: 100px; /* Altura mínima para que sea visible */
+  min-height: 100px; /* Altura mínima para que sea visible, ajusta si es necesario */
   overflow-y: auto; /* Permite desplazamiento si hay muchos elementos */
   box-sizing: border-box; /* Incluye padding en el ancho/alto */
+  flex-shrink: 0; /* Evita que la galería se encoja si el espacio es limitado */
 }
 
 .gallery-item {
   width: 150px; /* Ancho fijo para cada item de galería */
-  height: 100px; /* Altura fija para cada item de galería */
+  height: 120px; /* Altura fija para cada item de galería (ajustada para espacio de botones) */
   border: 1px solid #555;
   border-radius: 5px;
   overflow: hidden; /* Oculta cualquier parte del contenido que se desborde */
   display: flex;
-  flex-direction: column;
+  flex-direction: column; /* Apila la imagen/video y las acciones */
   background: #000;
   box-shadow: 0 0 5px rgba(0,0,0,0.5);
 }
