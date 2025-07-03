@@ -154,13 +154,52 @@ video, #glcanvas {
   cursor: pointer;
 }
 
-/* ELIMINAR TODAS ESTAS REGLAS CSS
-#camera-panel { ... }
-#camera-container:fullscreen #camera-panel { ... }
-#camera-panel.minimized { ... }
-#camera-panel-header { ... }
-#camera-panel-content { ... }
-#camera-panel-content.hidden { ... }
-#cameraSelect { ... }
-#switchCameraButton { ... }
-*/
+/* NUEVOS ESTILOS PARA EL CONTROL DE ZOOM */
+#zoom-control {
+  position: absolute;
+  top: 10px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: rgba(0, 0, 0, 0.5);
+  padding: 8px 12px;
+  border-radius: 20px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  z-index: 10;
+  color: white;
+  font-size: 0.9em;
+  opacity: 0.8; /* Opacidad inicial */
+  transition: opacity 0.3s ease-out;
+  will-change: opacity;
+}
+
+#camera-container:fullscreen #zoom-control {
+  opacity: 0.2; /* Menor opacidad en fullscreen */
+}
+
+#zoom-slider {
+  width: 120px;
+  -webkit-appearance: none; /* Eliminar estilo predeterminado */
+  background: rgba(255, 255, 255, 0.3);
+  border-radius: 5px;
+  height: 4px;
+  outline: none;
+}
+
+#zoom-slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: #007bff;
+  cursor: grab;
+  border: 2px solid white;
+  box-shadow: 0 0 2px rgba(0,0,0,0.5);
+}
+
+#zoom-value {
+  min-width: 40px; /* Asegura un ancho mínimo para el texto */
+  text-align: center;
+}
