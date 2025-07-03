@@ -32,7 +32,30 @@ let videoTexture; // Textura donde se cargará el fotograma del video
 let filterTypeLocation; // Ubicación del uniform para el tipo de filtro
 let timeLocation; // Ubicación del uniform para el tiempo (para efectos dinámicos)
 
-// --- NUEVOS UNIFORMS PARA EL FILTRO OJO DE PEZ ---
+// --- VARIABLES Y CONFIGURACIÓN DE AUDIO (existente del filtro anterior) ---
+let audioContext;
+let analyser;
+let microphone;
+let dataArray; // Para almacenar los datos de frecuencia del audio
+const AUDIO_THRESHOLD = 0.15; // Umbral de sonido para cambiar la paleta
+
+let paletteIndex = 0;
+const palettes = [
+    [1.0, 0.0, 0.0],    // Rojo (valores normalizados 0-1)
+    [0.0, 1.0, 0.0],    // Verde
+    [0.0, 0.0, 1.0],    // Azul
+    [1.0, 1.0, 0.0],    // Amarillo
+    [1.0, 0.0, 1.0],    // Magenta
+    [0.0, 1.0, 1.0],    // Cyan
+];
+let colorShiftUniformLocation; // Ubicación del uniform para el color de la paleta
+
+// --- NUEVOS UNIFORMS PARA EL FILTRO MODULAR COLOR SHIFT ---
+let bassAmpUniformLocation;
+let midAmpUniformLocation;
+let highAmpUniformLocation;
+
+// --- NUEVO UNIFORM PARA EL FILTRO OJO DE PEZ ---
 let fisheyeStrengthLocation;
 const defaultFisheyeStrength = 0.7; // Valor inicial para la intensidad del ojo de pez
 
@@ -58,6 +81,12 @@ const fsSource = `
     uniform int u_filterType; // Nuevo uniform para seleccionar el filtro
     uniform vec2 u_resolution; // Nuevo uniform para la resolución del canvas
     uniform float u_time; // Nuevo uniform para el tiempo, para efectos dinámicos
+    uniform vec3 u_colorShift; // Uniform para el filtro de cambio de color por audio
+
+    // NUEVOS UNIFORMS PARA EL FILTRO MODULAR COLOR SHIFT
+    uniform float u_bassAmp;
+    uniform float u_midAmp;
+    uniform float u_highAmp;
 
     // NUEVO UNIFORM PARA EL FILTRO OJO DE PEZ
     uniform float u_fisheyeStrength;
@@ -73,14 +102,15 @@ const fsSource = `
     const int FILTER_WEIRD = 5;
     const int FILTER_GLOW_OUTLINE = 6;
     const int FILTER_ANGELICAL_GLITCH = 7;
-    const int FILTER_MODULAR_COLOR_SHIFT = 8;
-    const int FILTER_FISHEYE = 9; // Nuevo filtro
+    const int FILTER_AUDIO_COLOR_SHIFT = 8;
+    const int FILTER_MODULAR_COLOR_SHIFT = 9;
+    const int FILTER_FISHEYE = 10; // Nuevo filtro
 
     // Función para generar ruido básico (copiada de tu fragShader anterior)
     float random(vec2 st) {
         return fract(sin(dot(st.xy, vec2(12.9898,78.233))) * 43758.5453123);
     }
-
+    
     // Función de brillo para detectar luz (copiada de tu fragShader anterior)
     float brightness(vec3 color) {
         return dot(color, vec3(0.299, 0.587, 0.114));
@@ -158,7 +188,7 @@ const fsSource = `
                 (random(uv + vec2(sin(u_time * 0.1), cos(u_time * 0.1))) - 0.5) * 0.1,
                 (random(uv + vec2(cos(u_time * 0.1), sin(u_time * 0.1))) - 0.5) * 0.1
             );
-
+            
             vec4 distorted = texture2D(u_image, uv + distortion);
 
             if (b > 0.5) {
@@ -173,7 +203,9 @@ const fsSource = `
                 finalColor = distorted.rgb;
             }
             alpha = col.a;
-        } else if (u_filterType == FILTER_MODULAR_COLOR_SHIFT) {
+        } else if (u_filterType == FILTER_AUDIO_COLOR_SHIFT) { 
+            finalColor = mod(color.rgb + u_colorShift, 1.0);
+        } else if (u_filterType == FILTER_MODULAR_COLOR_SHIFT) { // Lógica del nuevo filtro "Modular Color Shift"
             // Paletas de color (normalizadas de 0-255 a 0-1)
             const vec3 palette0 = vec3(80.0/255.0, 120.0/255.0, 180.0/255.0); // Graves
             const vec3 palette1 = vec3(100.0/255.0, 180.0/255.0, 200.0/255.0); // Medios
@@ -311,14 +343,16 @@ function initWebGL() {
     filterTypeLocation = gl.getUniformLocation(program, 'u_filterType'); // Obtener ubicación del uniform del filtro
     program.resolutionLocation = gl.getUniformLocation(program, 'u_resolution'); // Obtener ubicación del uniform de resolución
     timeLocation = gl.getUniformLocation(program, 'u_time'); // Obtener ubicación del uniform de tiempo
+    colorShiftUniformLocation = gl.getUniformLocation(program, 'u_colorShift'); // Obtener ubicación del uniform para el cambio de color
 
-    // Obtener ubicaciones para los uniforms del filtro modular
-    const bassAmpUniformLocation = gl.getUniformLocation(program, 'u_bassAmp');
-    const midAmpUniformLocation = gl.getUniformLocation(program, 'u_midAmp');
-    const highAmpUniformLocation = gl.getUniformLocation(program, 'u_highAmp');
+    // Obtener ubicaciones para los nuevos uniforms del filtro modular
+    bassAmpUniformLocation = gl.getUniformLocation(program, 'u_bassAmp');
+    midAmpUniformLocation = gl.getUniformLocation(program, 'u_midAmp');
+    highAmpUniformLocation = gl.getUniformLocation(program, 'u_highAmp');
 
     // Obtener ubicación para el nuevo uniform del filtro ojo de pez
     fisheyeStrengthLocation = gl.getUniformLocation(program, 'u_fisheyeStrength');
+
 
     gl.enableVertexAttribArray(program.positionLocation);
     gl.enableVertexAttribArray(program.texCoordLocation);
@@ -336,7 +370,7 @@ function initWebGL() {
 
     // Establecer el filtro inicial (sin filtro) y la intensidad del ojo de pez
     gl.uniform1i(filterTypeLocation, 0); // 0 = FILTER_NONE
-    gl.uniform1f(fisheyeStrengthLocation, defaultFisheyeStrength);
+    gl.uniform1f(fisheyeStrengthLocation, defaultFisheyeStrength); // Establecer la fuerza inicial del ojo de pez
     console.log('WebGL inicialización completa.');
 }
 
@@ -352,8 +386,402 @@ async function listCameras() {
     availableCameraDevices = videoDevices;
     console.log('Cámaras disponibles:', availableCameraDevices);
     console.log('Número de cámaras disponibles:', availableCameraDevices.length);
-
+    
     if (availableCameraDevices.length > 0) {
       // Si no hay una cámara actual o la cámara actual ya no está disponible, selecciona la primera
       if (!currentCameraDeviceId || !availableCameraDevices.some(d => d.deviceId === currentCameraDeviceId)) {
-        currentCameraDeviceId = availableCameraDevices
+        currentCameraDeviceId = availableCameraDevices[0].deviceId;
+        console.log('Cámara inicial seleccionada:', currentCameraDeviceId);
+      }
+      startCamera(currentCameraDeviceId);
+    } else {
+      alert('No se encontraron dispositivos de cámara.');
+      console.warn('No se encontraron dispositivos de cámara.');
+    }
+  } catch (err) {
+    console.error('Error al listar dispositivos de cámara:', err);
+    alert('Error al listar dispositivos de cámara. Revisa los permisos.');
+  }
+}
+
+async function startCamera(deviceId) {
+  console.log('Intentando iniciar cámara con Device ID:', deviceId);
+  if (currentStream) {
+    currentStream.getTracks().forEach(track => track.stop());
+    console.log('Stream anterior detenido.');
+  }
+
+  const constraints = {
+    video: {
+      deviceId: deviceId ? { exact: deviceId } : undefined,
+      width: { ideal: 1280 },
+      height: { ideal: 720 }
+    },
+    audio: true // Solicitamos acceso al micrófono aquí
+  };
+
+  try {
+    currentStream = await navigator.mediaDevices.getUserMedia(constraints);
+    video.srcObject = currentStream;
+    currentCameraDeviceId = deviceId || currentStream.getVideoTracks()[0].getSettings().deviceId;
+
+    const videoTrack = currentStream.getVideoTracks()[0];
+    const settings = videoTrack.getSettings();
+    currentFacingMode = settings.facingMode || 'unknown';
+    console.log('Cámara actual - Device ID:', currentCameraDeviceId, 'Facing Mode:', currentFacingMode);
+
+    // --- Web Audio API setup ---
+    if (currentStream.getAudioTracks().length > 0) {
+        if (!audioContext) {
+            audioContext = new (window.AudioContext || window.webkitAudioContext)();
+            analyser = audioContext.createAnalyser();
+            analyser.fftSize = 256; // Un tamaño de FFT más pequeño para una respuesta más rápida
+            dataArray = new Uint8Array(analyser.frequencyBinCount);
+            console.log('AudioContext y Analyser inicializados.');
+        }
+
+        // Desconectar el micrófono anterior si existe
+        if (microphone) {
+            microphone.disconnect();
+        }
+
+        // Conectar la nueva fuente de audio
+        const audioSource = audioContext.createMediaStreamSource(currentStream);
+        audioSource.connect(analyser);
+        // analyser.connect(audioContext.destination); // Opcional: para escuchar el audio del micrófono
+        microphone = audioSource; // Guardar la referencia
+        console.log('Micrófono conectado al Analyser.');
+    } else {
+        console.warn('No se encontró pista de audio en el stream de la cámara.');
+        // Limpiar recursos de audio si no hay pista de audio disponible
+        if (microphone) {
+            microphone.disconnect();
+            microphone = null;
+        }
+        if (analyser) {
+            analyser.disconnect();
+            analyser = null;
+        }
+    }
+    // --- Fin Web Audio API setup ---
+
+    video.onloadedmetadata = () => {
+      video.play();
+      console.log('Video metadata cargada y reproduciendo.');
+      if (glcanvas.width !== video.videoWidth || glcanvas.height !== video.videoHeight) {
+        glcanvas.width = video.videoWidth;
+        glcanvas.height = video.videoHeight;
+        console.log('Canvas WebGL redimensionado a:', glcanvas.width, 'x', glcanvas.height);
+        if (gl) {
+          gl.viewport(0, 0, glcanvas.width, glcanvas.height);
+          console.log('Viewport de WebGL actualizado.');
+        }
+      }
+      // Inicializar WebGL solo una vez que el video esté listo y si no se ha inicializado ya
+      if (!gl) {
+        initWebGL();
+        console.log('WebGL inicializado tras cargar video.');
+      }
+      drawVideoFrame();
+      console.log('Bucle de renderizado WebGL iniciado.');
+    };
+  } catch (err) {
+    console.error('No se pudo acceder a la cámara/micrófono:', err);
+    alert('No se pudo acceder a la cámara/micrófono. Revisa los permisos. Error: ' + err.name);
+  }
+}
+
+// --- BUCLE PRINCIPAL DE RENDERIZADO WEBG L ---
+function drawVideoFrame() {
+    // Asegurarse de que gl y program estén disponibles
+    if (!gl || !program || !video.srcObject || video.readyState !== video.HAVE_ENOUGH_DATA) {
+        requestAnimationFrame(drawVideoFrame);
+        return;
+    }
+
+    // --- Detección de nivel de audio (solo si el filtro de audio está seleccionado) ---
+    if (analyser && dataArray && selectedFilter === 'audio-color-shift') {
+        analyser.getByteFrequencyData(dataArray); // O `getByteTimeDomainData` para la forma de onda
+        let sum = 0;
+        for (let i = 0; i < dataArray.length; i++) {
+            sum += dataArray[i];
+        }
+        let average = sum / dataArray.length;
+        let normalizedLevel = average / 255.0; // Normalizar a un rango de 0-1
+
+        if (normalizedLevel > AUDIO_THRESHOLD) {
+            changePaletteIndex(); // Cambiar la paleta si el sonido es fuerte
+        }
+    }
+    // --- Fin detección de nivel de audio ---
+
+    updateVideoTexture(gl, video);
+
+    gl.clearColor(0.0, 0.0, 0.0, 1.0);
+    gl.clear(gl.COLOR_BUFFER_BIT);
+
+    gl.useProgram(program);
+
+    const isFrontFacing = currentFacingMode === 'user';
+    gl.uniform1i(program.flipXLocation, isFrontFacing ? 1 : 0);
+    
+    // Pasar la resolución al shader
+    gl.uniform2f(program.resolutionLocation, glcanvas.width, glcanvas.height);
+    
+    // Pasar el tiempo al shader (en segundos)
+    const currentTime = performance.now() / 1000.0;
+    gl.uniform1f(timeLocation, currentTime);
+
+    // Pasar el color de la paleta actual al shader si el filtro activo es 'audio-color-shift'
+    if (selectedFilter === 'audio-color-shift') {
+        const currentColor = palettes[paletteIndex];
+        gl.uniform3fv(colorShiftUniformLocation, new Float32Array(currentColor));
+    }
+
+    // --- Pasar "amplitudes" basadas en tiempo para el filtro Modular Color Shift ---
+    if (selectedFilter === 'modular-color-shift') {
+        // Generar valores pulsantes usando seno y mapearlos a los rangos deseados
+        const bassAmp = mapValue(Math.sin(currentTime * 0.8 + 0), -1, 1, 0.0, 2.0); // 0-2.0
+        const midAmp = mapValue(Math.sin(currentTime * 1.2 + Math.PI / 3), -1, 1, 0.0, 1.5); // 0-1.5
+        const highAmp = mapValue(Math.sin(currentTime * 1.5 + Math.PI * 2 / 3), -1, 1, 0.0, 2.5); // 0-2.5
+
+        gl.uniform1f(bassAmpUniformLocation, bassAmp);
+        gl.uniform1f(midAmpUniformLocation, midAmp);
+        gl.uniform1f(highAmpUniformLocation, highAmp);
+    }
+
+    // --- Pasar la fuerza del ojo de pez al shader ---
+    if (selectedFilter === 'fisheye') {
+        gl.uniform1f(fisheyeStrengthLocation, defaultFisheyeStrength); // Puedes hacer esto dinámico con un slider si quieres.
+    }
+
+
+    let filterIndex = 0; // FILTER_NONE por defecto
+    switch (selectedFilter) {
+        case 'grayscale': filterIndex = 1; break; // FILTER_GRAYSCALE
+        case 'invert': filterIndex = 2; break;    // FILTER_INVERT
+        case 'sepia': filterIndex = 3; break;      // FILTER_SEPIA
+        case 'eco-pink': filterIndex = 4; break;  // FILTER_ECO_PINK
+        case 'weird': filterIndex = 5; break;      // FILTER_WEIRD
+        case 'glow-outline': filterIndex = 6; break; // Filtro Glow con contorno
+        case 'angelical-glitch': filterIndex = 7; break; // Filtro Angelical Glitch
+        case 'audio-color-shift': filterIndex = 8; break; // Filtro Audio Color Shift
+        case 'modular-color-shift': filterIndex = 9; break; // Nuevo filtro Modular Color Shift
+        case 'fisheye': filterIndex = 10; break; // NUEVO FILTRO OJO DE PEZ
+        default: filterIndex = 0; break;
+    }
+    gl.uniform1i(filterTypeLocation, filterIndex);
+
+    gl.drawArrays(gl.TRIANGLES, 0, 6);
+    requestAnimationFrame(drawVideoFrame);
+}
+
+// Función auxiliar para mapear un valor de un rango a otro
+function mapValue(value, inMin, inMax, outMin, outMax) {
+    return (value - inMin) * (outMax - outMin) / (inMax - inMin) + outMin;
+}
+
+
+// --- MANEJADORES DE EVENTOS ---
+captureBtn.addEventListener('click', () => {
+    console.log('Botón de captura clickeado.');
+    if (!gl || !glcanvas.width || !glcanvas.height) {
+        console.error('WebGL no está inicializado o el canvas no tiene dimensiones para la captura.');
+        return;
+    }
+
+    let img = new Image();
+    img.src = glcanvas.toDataURL('image/png'); 
+    
+    img.onload = () => {
+        console.log('Imagen cargada para la galería desde glcanvas.toDataURL().');
+        addToGallery(img, 'img');
+    };
+    img.onerror = (e) => {
+        console.error('Error al cargar la imagen para la galería:', e);
+    };
+});
+
+
+recordBtn.addEventListener('click', () => {
+  if (!isRecording) {
+    chunks = [];
+    console.log('Iniciando grabación desde glcanvas.captureStream().');
+    let streamToRecord = glcanvas.captureStream(); // Capturar el stream del canvas con los filtros
+    mediaRecorder = new MediaRecorder(streamToRecord, { mimeType: 'video/webm; codecs=vp8' });
+
+    mediaRecorder.ondataavailable = e => {
+      if (e.data.size > 0) chunks.push(e.data);
+      console.log('Datos de video disponibles, tamaño:', e.data.size);
+    };
+    mediaRecorder.onstop = () => {
+      console.log('Grabación detenida. Chunks capturados:', chunks.length);
+      const blob = new Blob(chunks, { type: 'video/webm' });
+      const url = URL.createObjectURL(blob);
+      let vid = document.createElement('video');
+      vid.src = url;
+      vid.controls = true;
+      vid.onloadedmetadata = () => {
+        vid.play();
+        console.log('Video grabado cargado y reproduciendo.');
+      };
+      addToGallery(vid, 'video');
+    };
+    mediaRecorder.start();
+    isRecording = true;
+    controls.style.display = 'none';
+    recordingControls.style.display = 'flex';
+    console.log('Grabación iniciada.');
+  }
+});
+
+pauseBtn.addEventListener('click', () => {
+  if (isPaused) {
+    mediaRecorder.resume();
+    pauseBtn.textContent = '⏸️';
+    console.log('Grabación reanudada.');
+  } else {
+    mediaRecorder.pause();
+    pauseBtn.textContent = '▶️';
+    console.log('Grabación pausada.');
+  }
+  isPaused = !isPaused;
+});
+
+stopBtn.addEventListener('click', () => {
+  mediaRecorder.stop();
+  isRecording = false;
+  controls.style.display = 'flex';
+  recordingControls.style.display = 'none';
+  console.log('Grabación finalizada.');
+});
+
+filterBtn.addEventListener('click', () => {
+  filtersDropdown.style.display = (filtersDropdown.style.display === 'block') ? 'none' : 'block';
+  console.log('Toggle de dropdown de filtros.');
+});
+
+filterSelect.addEventListener('change', () => {
+  selectedFilter = filterSelect.value;
+  filtersDropdown.style.display = 'none';
+  console.log('Filtro seleccionado:', selectedFilter);
+});
+
+fullscreenBtn.addEventListener('click', () => {
+  if (!document.fullscreenElement) {
+    cameraContainer.requestFullscreen(); // cameraContainer es el elemento principal para fullscreen
+    console.log('Solicitando fullscreen.');
+  } else {
+    document.exitFullscreen();
+    console.log('Saliendo de fullscreen.');
+  }
+});
+
+function addToGallery(element, type) {
+  let container = document.createElement('div');
+  container.className = 'gallery-item';
+  container.appendChild(element);
+
+  let actions = document.createElement('div');
+  actions.className = 'gallery-actions';
+
+  let downloadBtn = document.createElement('button');
+  downloadBtn.textContent = 'Descargar';
+  downloadBtn.onclick = () => {
+    const a = document.createElement('a');
+    a.href = element.src;
+    a.download = type === 'img' ? 'foto.png' : 'video.webm';
+    a.click();
+    console.log('Descargando', type);
+  };
+
+  let shareBtn = document.createElement('button');
+  shareBtn.textContent = 'Compartir';
+  shareBtn.onclick = async () => {
+    if (navigator.share) {
+      try {
+        const file = await fetch(element.src).then(res => res.blob());
+        const fileName = type === 'img' ? 'foto.png' : 'video.webm';
+        const fileType = type === 'img' ? 'image/png' : 'video/webm';
+        const shareData = {
+          files: [new File([file], fileName, { type: fileType })],
+          title: 'Mi creación desde Experimental Camera',
+          text: '¡Echa un vistazo a lo que hice con Experimental Camera!'
+        };
+        await navigator.share(shareData);
+        console.log('Contenido compartido exitosamente');
+      } catch (error) {
+        console.error('Error al compartir:', error);
+      }
+    } else {
+      alert('La API Web Share no es compatible con este navegador.');
+      console.warn('La API Web Share no es compatible.');
+    }
+  };
+
+  let deleteBtn = document.createElement('button');
+  deleteBtn.textContent = 'Eliminar';
+  deleteBtn.onclick = () => {
+    if (type === 'video' && element.src.startsWith('blob:')) {
+      URL.revokeObjectURL(element.src);
+    }
+    container.remove();
+    console.log('Elemento de galería eliminado.');
+  };
+
+  actions.appendChild(downloadBtn);
+  if (navigator.share) { // Solo añadir el botón de compartir si la API está disponible
+    actions.appendChild(shareBtn);
+  }
+  actions.appendChild(deleteBtn);
+  container.appendChild(actions);
+
+  gallery.prepend(container); // Añadir al principio de la galería
+}
+
+// --- LÓGICA DE DOBLE TAP/CLICK PARA CAMBIAR DE CÁMARA ---
+let lastTap = 0;
+const DBL_TAP_THRESHOLD = 300;
+
+glcanvas.addEventListener('touchend', (event) => {
+    console.log("Evento 'touchend' en glcanvas.");
+    const currentTime = new Date().getTime();
+    const tapLength = currentTime - lastTap;
+
+    if (tapLength < DBL_TAP_THRESHOLD && tapLength > 0) {
+        console.log("¡Doble tap detectado!");
+        event.preventDefault(); // Prevenir el zoom por doble tap predeterminado
+        toggleCamera();
+    }
+    lastTap = currentTime;
+}, { passive: false }); // Usar { passive: false } para permitir preventDefault
+
+glcanvas.addEventListener('dblclick', () => {
+    console.log("Evento 'dblclick' en glcanvas.");
+    toggleCamera();
+});
+
+// Función centralizada para cambiar de cámara
+function toggleCamera() {
+    if (availableCameraDevices.length > 1) {
+        const currentIdx = availableCameraDevices.findIndex(
+            device => device.deviceId === currentCameraDeviceId
+        );
+        const nextIdx = (currentIdx + 1) % availableCameraDevices.length;
+        const nextDeviceId = availableCameraDevices[nextIdx].deviceId;
+        console.log('Cambiando de cámara. Actual:', currentCameraDeviceId, 'Siguiente:', nextDeviceId);
+        startCamera(nextDeviceId);
+    } else {
+        console.log("Solo hay una cámara disponible para cambiar.");
+        alert("Solo hay una cámara disponible.");
+    }
+}
+
+// Función para cambiar el índice de la paleta (para filtro de audio)
+function changePaletteIndex() {
+    paletteIndex = (paletteIndex + 1) % palettes.length;
+    console.log('Paleta cambiada a índice:', paletteIndex, ' Color:', palettes[paletteIndex]);
+}
+
+// Iniciar el proceso de listar cámaras y obtener el stream
+listCameras();
