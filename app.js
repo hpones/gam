@@ -32,6 +32,24 @@ let videoTexture; // Textura donde se cargará el fotograma del video
 let filterTypeLocation; // Ubicación del uniform para el tipo de filtro
 let timeLocation; // Ubicación del uniform para el tiempo (para efectos dinámicos)
 
+// --- VARIABLES Y CONFIGURACIÓN DE AUDIO ---
+let audioContext;
+let analyser;
+let microphone;
+let dataArray; // Para almacenar los datos de frecuencia del audio
+const AUDIO_THRESHOLD = 0.15; // Umbral de sonido para cambiar la paleta
+
+let paletteIndex = 0;
+const palettes = [
+    [1.0, 0.0, 0.0],    // Rojo (valores normalizados 0-1)
+    [0.0, 1.0, 0.0],    // Verde
+    [0.0, 0.0, 1.0],    // Azul
+    [1.0, 1.0, 0.0],    // Amarillo
+    [1.0, 0.0, 1.0],    // Magenta
+    [0.0, 1.0, 1.0],    // Cyan
+];
+let colorShiftUniformLocation; // Ubicación del uniform para el color de la paleta
+
 // Vertex Shader: define la posición de los vértices y las coordenadas de textura
 const vsSource = `
     attribute vec4 a_position;
@@ -54,6 +72,7 @@ const fsSource = `
     uniform int u_filterType; // Nuevo uniform para seleccionar el filtro
     uniform vec2 u_resolution; // Nuevo uniform para la resolución del canvas
     uniform float u_time; // Nuevo uniform para el tiempo, para efectos dinámicos
+    uniform vec3 u_colorShift; // Nuevo uniform para el filtro de cambio de color por audio
 
     varying vec2 v_texCoord;
 
@@ -65,14 +84,15 @@ const fsSource = `
     const int FILTER_ECO_PINK = 4;
     const int FILTER_WEIRD = 5;
     const int FILTER_GLOW_OUTLINE = 6;
-    const int FILTER_ANGELICAL_GLITCH = 7; // Nuevo filtro
+    const int FILTER_ANGELICAL_GLITCH = 7;
+    const int FILTER_AUDIO_COLOR_SHIFT = 8; // Nuevo filtro
 
-    // Función para generar ruido básico (copiada de tu fragShader)
+    // Función para generar ruido básico (copiada de tu fragShader anterior)
     float random(vec2 st) {
         return fract(sin(dot(st.xy, vec2(12.9898,78.233))) * 43758.5453123);
     }
     
-    // Función de brillo para detectar luz (copiada de tu fragShader)
+    // Función de brillo para detectar luz (copiada de tu fragShader anterior)
     float brightness(vec3 color) {
         return dot(color, vec3(0.299, 0.587, 0.114));
     }
@@ -137,24 +157,21 @@ const fsSource = `
             float glowFactor = smoothstep(0.7, 1.0, brightness) * 0.5;
 
             finalColor = mix(finalColor + glowFactor, outlineColor, edge);
-        } else if (u_filterType == FILTER_ANGELICAL_GLITCH) { // Lógica del nuevo filtro "Angelical Glitch"
-            vec2 uv = texCoord; // Usamos texCoord, que ya maneja el volteo horizontal
+        } else if (u_filterType == FILTER_ANGELICAL_GLITCH) {
+            vec2 uv = texCoord;
 
             vec4 col = texture2D(u_image, uv);
-            col.rgb *= 1.3; // Aumentamos el brillo
+            col.rgb *= 1.3;
 
-            float b = brightness(col.rgb); // Brillo total del píxel
+            float b = brightness(col.rgb);
 
-            // Crear distorsión basada en el tiempo
             vec2 distortion = vec2(
-                (random(uv + vec2(sin(u_time * 0.1), cos(u_time * 0.1))) - 0.5) * 0.1,  // Distorsión horizontal
-                (random(uv + vec2(cos(u_time * 0.1), sin(u_time * 0.1))) - 0.5) * 0.1   // Distorsión vertical
+                (random(uv + vec2(sin(u_time * 0.1), cos(u_time * 0.1))) - 0.5) * 0.1,
+                (random(uv + vec2(cos(u_time * 0.1), sin(u_time * 0.1))) - 0.5) * 0.1
             );
             
-            // Aplicamos distorsión al píxel
             vec4 distorted = texture2D(u_image, uv + distortion);
 
-            // Si el píxel tiene un alto brillo, agregar un color de resplandor
             if (b > 0.5) {
                 vec3 glowColor = vec3(
                     0.5 + 0.3 * sin(u_time * 2.0),
@@ -164,9 +181,13 @@ const fsSource = `
 
                 finalColor = mix(distorted.rgb, glowColor, 0.5);
             } else {
-                finalColor = distorted.rgb; // Sin glow, solo distorsión
+                finalColor = distorted.rgb;
             }
-            alpha = col.a; // Mantenemos el alpha original
+            alpha = col.a;
+        } else if (u_filterType == FILTER_AUDIO_COLOR_SHIFT) { // Lógica del nuevo filtro "Audio Color Shift"
+            // Suma el color de la paleta y aplica un módulo para que los colores se "envuelvan"
+            finalColor = mod(color.rgb + u_colorShift, 1.0);
+            // alpha permanece color.a
         }
 
         gl_FragColor = vec4(finalColor, alpha);
@@ -268,6 +289,7 @@ function initWebGL() {
     filterTypeLocation = gl.getUniformLocation(program, 'u_filterType'); // Obtener ubicación del uniform del filtro
     program.resolutionLocation = gl.getUniformLocation(program, 'u_resolution'); // Obtener ubicación del uniform de resolución
     timeLocation = gl.getUniformLocation(program, 'u_time'); // Obtener ubicación del uniform de tiempo
+    colorShiftUniformLocation = gl.getUniformLocation(program, 'u_colorShift'); // Obtener ubicación del uniform para el cambio de color
 
     gl.enableVertexAttribArray(program.positionLocation);
     gl.enableVertexAttribArray(program.texCoordLocation);
@@ -331,7 +353,7 @@ async function startCamera(deviceId) {
       width: { ideal: 1280 },
       height: { ideal: 720 }
     },
-    audio: true
+    audio: true // Solicitamos acceso al micrófono aquí
   };
 
   try {
@@ -343,6 +365,41 @@ async function startCamera(deviceId) {
     const settings = videoTrack.getSettings();
     currentFacingMode = settings.facingMode || 'unknown';
     console.log('Cámara actual - Device ID:', currentCameraDeviceId, 'Facing Mode:', currentFacingMode);
+
+    // --- Web Audio API setup ---
+    if (currentStream.getAudioTracks().length > 0) {
+        if (!audioContext) {
+            audioContext = new (window.AudioContext || window.webkitAudioContext)();
+            analyser = audioContext.createAnalyser();
+            analyser.fftSize = 256; // Un tamaño de FFT más pequeño para una respuesta más rápida
+            dataArray = new Uint8Array(analyser.frequencyBinCount);
+            console.log('AudioContext y Analyser inicializados.');
+        }
+
+        // Desconectar el micrófono anterior si existe
+        if (microphone) {
+            microphone.disconnect();
+        }
+
+        // Conectar la nueva fuente de audio
+        const audioSource = audioContext.createMediaStreamSource(currentStream);
+        audioSource.connect(analyser);
+        // analyser.connect(audioContext.destination); // Opcional: para escuchar el audio del micrófono
+        microphone = audioSource; // Guardar la referencia
+        console.log('Micrófono conectado al Analyser.');
+    } else {
+        console.warn('No se encontró pista de audio en el stream de la cámara.');
+        // Limpiar recursos de audio si no hay pista de audio disponible
+        if (microphone) {
+            microphone.disconnect();
+            microphone = null;
+        }
+        if (analyser) {
+            analyser.disconnect();
+            analyser = null;
+        }
+    }
+    // --- Fin Web Audio API setup ---
 
     video.onloadedmetadata = () => {
       video.play();
@@ -365,8 +422,8 @@ async function startCamera(deviceId) {
       console.log('Bucle de renderizado WebGL iniciado.');
     };
   } catch (err) {
-    console.error('No se pudo acceder a la cámara:', err);
-    alert('No se pudo acceder a la cámara. Revisa los permisos. Error: ' + err.name);
+    console.error('No se pudo acceder a la cámara/micrófono:', err);
+    alert('No se pudo acceder a la cámara/micrófono. Revisa los permisos. Error: ' + err.name);
   }
 }
 
@@ -377,6 +434,22 @@ function drawVideoFrame() {
         requestAnimationFrame(drawVideoFrame);
         return;
     }
+
+    // --- Detección de nivel de audio ---
+    if (analyser && dataArray && selectedFilter === 'audio-color-shift') {
+        analyser.getByteFrequencyData(dataArray); // O `getByteTimeDomainData` para la forma de onda
+        let sum = 0;
+        for (let i = 0; i < dataArray.length; i++) {
+            sum += dataArray[i];
+        }
+        let average = sum / dataArray.length;
+        let normalizedLevel = average / 255.0; // Normalizar a un rango de 0-1
+
+        if (normalizedLevel > AUDIO_THRESHOLD) {
+            changePaletteIndex(); // Cambiar la paleta si el sonido es fuerte
+        }
+    }
+    // --- Fin detección de nivel de audio ---
 
     updateVideoTexture(gl, video);
 
@@ -394,6 +467,12 @@ function drawVideoFrame() {
     // Pasar el tiempo al shader (en segundos)
     gl.uniform1f(timeLocation, performance.now() / 1000.0);
 
+    // Pasar el color de la paleta actual al shader si el filtro activo es 'audio-color-shift'
+    if (selectedFilter === 'audio-color-shift') {
+        const currentColor = palettes[paletteIndex];
+        gl.uniform3fv(colorShiftUniformLocation, new Float32Array(currentColor));
+    }
+
     let filterIndex = 0; // FILTER_NONE por defecto
     switch (selectedFilter) {
         case 'grayscale': filterIndex = 1; break; // FILTER_GRAYSCALE
@@ -402,7 +481,8 @@ function drawVideoFrame() {
         case 'eco-pink': filterIndex = 4; break;  // FILTER_ECO_PINK
         case 'weird': filterIndex = 5; break;     // FILTER_WEIRD
         case 'glow-outline': filterIndex = 6; break; // Filtro Glow con contorno
-        case 'angelical-glitch': filterIndex = 7; break; // Nuevo filtro Angelical Glitch
+        case 'angelical-glitch': filterIndex = 7; break; // Filtro Angelical Glitch
+        case 'audio-color-shift': filterIndex = 8; break; // Nuevo filtro Audio Color Shift
         default: filterIndex = 0; break;
     }
     gl.uniform1i(filterTypeLocation, filterIndex);
@@ -605,6 +685,12 @@ function toggleCamera() {
         console.log("Solo hay una cámara disponible para cambiar.");
         alert("Solo hay una cámara disponible.");
     }
+}
+
+// Función para cambiar el índice de la paleta
+function changePaletteIndex() {
+    paletteIndex = (paletteIndex + 1) % palettes.length;
+    console.log('Paleta cambiada a índice:', paletteIndex, ' Color:', palettes[paletteIndex]);
 }
 
 // Iniciar el proceso de listar cámaras y obtener el stream
