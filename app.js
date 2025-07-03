@@ -1,6 +1,6 @@
 let video = document.getElementById('video');
 let glcanvas = document.getElementById('glcanvas');
-let canvas = document.getElementById('canvas');
+let canvas = document.getElementById('canvas'); // Para la captura de imágenes estáticas
 let filterSelect = document.getElementById('filterSelect');
 let captureBtn = document.getElementById('capture-button');
 let recordBtn = document.getElementById('record-button');
@@ -14,50 +14,181 @@ let controls = document.getElementById('controls');
 let recordingControls = document.getElementById('recording-controls');
 let cameraContainer = document.getElementById('camera-container');
 
-// Eliminar referencias a elementos del panel de cámara y zoom
-// let cameraSelect = document.getElementById('cameraSelect');
-// let switchCameraButton = document.getElementById('switchCameraButton');
-// let zoomSlider = document.getElementById('zoom-slider');
-// let zoomValueSpan = document.getElementById('zoom-value');
-
 let currentStream;
 let mediaRecorder;
 let chunks = [];
 let isRecording = false;
 let isPaused = false;
-let selectedFilter = 'none';
+let selectedFilter = 'none'; // Este se usará para cuando implementemos los filtros GLSL
 let currentCameraDeviceId = null;
-let currentFacingMode = null; // Para la lógica de espejo en cámaras frontales
+let currentFacingMode = null; // 'user' (frontal) o 'environment' (trasera)
 
-// Cache del contexto 2D del glcanvas
-const glContext = glcanvas.getContext('2d');
+// --- VARIABLES Y CONFIGURACIÓN DE WEBG L ---
+let gl; // Contexto WebGL
+let program; // Programa de shaders
+let positionBuffer; // Buffer para las posiciones de los vértices
+let texCoordBuffer; // Buffer para las coordenadas de textura
+let videoTexture; // Textura donde se cargará el fotograma del video
 
-// Array para almacenar los IDs de las cámaras disponibles
-let availableCameraDevices = [];
+// Shaders GLSL (en cadenas de texto)
+// Vertex Shader: define la posición de los vértices y las coordenadas de textura
+const vsSource = `
+    attribute vec4 a_position; // Posición del vértice (x, y)
+    attribute vec2 a_texCoord; // Coordenadas de textura (u, v)
 
+    varying vec2 v_texCoord; // Pasa las coordenadas de textura al Fragment Shader
 
-function applyFilterToContext(ctx, filterType) {
-  switch (filterType) {
-    case 'grayscale':
-      ctx.filter = 'grayscale(100%)';
-      break;
-    case 'invert':
-      ctx.filter = 'invert(100%)';
-      break;
-    case 'sepia':
-      ctx.filter = 'sepia(100%)';
-      break;
-    default:
-      ctx.filter = 'none';
-  }
+    void main() {
+        gl_Position = a_position; // Establece la posición final del vértice
+        v_texCoord = a_texCoord; // Pasa las coordenadas de textura sin modificar
+    }
+`;
+
+// Fragment Shader: define el color de cada píxel
+const fsSource = `
+    precision mediump float; // Define la precisión de los flotantes
+
+    uniform sampler2D u_image; // La textura de video
+    uniform bool u_flipX; // Uniform para voltear horizontalmente
+
+    varying vec2 v_texCoord; // Coordenadas de textura interpoladas del Vertex Shader
+
+    void main() {
+        vec2 texCoord = v_texCoord;
+        if (u_flipX) {
+            texCoord.x = 1.0 - texCoord.x; // Voltear horizontalmente
+        }
+        gl_FragColor = texture2D(u_image, texCoord); // Obtiene el color de la textura en las coordenadas dadas
+    }
+`;
+
+// Helper para compilar un shader
+function compileShader(gl, source, type) {
+    const shader = gl.createShader(type);
+    gl.shaderSource(shader, source);
+    gl.compileShader(shader);
+
+    if (!gl.getShaderParameter(shader, gl.COMPILE_STATUS)) {
+        console.error('Error al compilar el shader:', gl.getShaderInfoLog(shader));
+        gl.deleteShader(shader);
+        return null;
+    }
+    return shader;
 }
+
+// Helper para enlazar shaders a un programa
+function createProgram(gl, vertexShader, fragmentShader) {
+    const program = gl.createProgram();
+    gl.attachShader(program, vertexShader);
+    gl.attachShader(program, fragmentShader);
+    gl.linkProgram(program);
+
+    if (!gl.getProgramParameter(program, gl.LINK_STATUS)) {
+        console.error('Error al enlazar el programa:', gl.getProgramInfoLog(program));
+        gl.deleteProgram(program);
+        return null;
+    }
+    return program;
+}
+
+// Configura los buffers de un cuadrado que llena el canvas
+function setupQuadBuffers(gl) {
+    // Coordenadas de los vértices para un cuadrado que cubre todo el espacio de clip
+    const positions = new Float32Array([
+        -1, -1,
+         1, -1,
+        -1,  1,
+        -1,  1,
+         1, -1,
+         1,  1,
+    ]);
+    positionBuffer = gl.createBuffer();
+    gl.bindBuffer(gl.ARRAY_BUFFER, positionBuffer);
+    gl.bufferData(gl.ARRAY_BUFFER, positions, gl.STATIC_DRAW);
+
+    // Coordenadas de textura (mapean los vértices del cuadrado a la textura completa)
+    const texCoords = new Float32Array([
+        0, 1, // Esquina inferior izquierda del video
+        1, 1, // Esquina inferior derecha del video
+        0, 0, // Esquina superior izquierda del video
+        0, 0, // Duplicado para formar el segundo triángulo
+        1, 1,
+        1, 0, // Esquina superior derecha del video
+    ]);
+    texCoordBuffer = gl.createBuffer();
+    gl.bindBuffer(gl.ARRAY_BUFFER, texCoordBuffer);
+    gl.bufferData(gl.ARRAY_BUFFER, texCoords, gl.STATIC_DRAW);
+}
+
+// Inicializa la textura para el video
+function setupVideoTexture(gl) {
+    videoTexture = gl.createTexture();
+    gl.bindTexture(gl.TEXTURE_2D, videoTexture);
+
+    // Configuración para que WebGL no intente hacer mipmaps y pueda manejar cualquier tamaño
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+}
+
+// Actualiza la textura con el fotograma actual del video
+function updateVideoTexture(gl, video) {
+    gl.bindTexture(gl.TEXTURE_2D, videoTexture);
+    gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, video);
+}
+
+// --- FUNCIÓN DE INICIALIZACIÓN WEBG L ---
+function initWebGL() {
+    gl = glcanvas.getContext('webgl');
+    if (!gl) {
+        alert('Tu navegador no soporta WebGL. No se podrán aplicar filtros avanzados.');
+        return;
+    }
+
+    // Compilar y enlazar shaders
+    const vertexShader = compileShader(gl, vsSource, gl.VERTEX_SHADER);
+    const fragmentShader = compileShader(gl, fsSource, gl.FRAGMENT_SHADER);
+    program = createProgram(gl, vertexShader, fragmentShader);
+    gl.useProgram(program);
+
+    // Obtener las ubicaciones de los atributos y uniforms
+    program.positionLocation = gl.getAttribLocation(program, 'a_position');
+    program.texCoordLocation = gl.getAttribLocation(program, 'a_texCoord');
+    program.imageLocation = gl.getUniformLocation(program, 'u_image');
+    program.flipXLocation = gl.getUniformLocation(program, 'u_flipX'); // Ubicación del uniform u_flipX
+
+    // Habilitar los atributos
+    gl.enableVertexAttribArray(program.positionLocation);
+    gl.enableVertexAttribArray(program.texCoordLocation);
+
+    // Configurar buffers
+    setupQuadBuffers(gl);
+
+    // Configurar textura de video
+    setupVideoTexture(gl);
+
+    // Asociar buffers con los atributos en el programa
+    gl.bindBuffer(gl.ARRAY_BUFFER, positionBuffer);
+    gl.vertexAttribPointer(program.positionLocation, 2, gl.FLOAT, false, 0, 0);
+
+    gl.bindBuffer(gl.ARRAY_BUFFER, texCoordBuffer);
+    gl.vertexAttribPointer(program.texCoordLocation, 2, gl.FLOAT, false, 0, 0);
+
+    // Decirle a WebGL en qué unidad de textura está nuestra imagen (unidad 0)
+    gl.uniform1i(program.imageLocation, 0);
+}
+
+
+// --- LÓGICA DE CÁMARA Y STREAMING ---
+let availableCameraDevices = [];
 
 async function listCameras() {
   try {
     const devices = await navigator.mediaDevices.enumerateDevices();
     const videoDevices = devices.filter(device => device.kind === 'videoinput');
 
-    availableCameraDevices = videoDevices; // Almacenar los dispositivos de cámara
+    availableCameraDevices = videoDevices;
     
     if (availableCameraDevices.length > 0) {
       if (!currentCameraDeviceId || !availableCameraDevices.some(d => d.deviceId === currentCameraDeviceId)) {
@@ -94,15 +225,23 @@ async function startCamera(deviceId) {
 
     const videoTrack = currentStream.getVideoTracks()[0];
     const settings = videoTrack.getSettings();
-    currentFacingMode = settings.facingMode || 'unknown'; // Actualizar facingMode
+    currentFacingMode = settings.facingMode || 'unknown';
 
     video.onloadedmetadata = () => {
       video.play();
+      // Asegurarse de que el canvas WebGL tenga el mismo tamaño que el video
       if (glcanvas.width !== video.videoWidth || glcanvas.height !== video.videoHeight) {
         glcanvas.width = video.videoWidth;
         glcanvas.height = video.videoHeight;
+        if (gl) { // Asegurarse de que gl esté inicializado antes de actualizar el viewport
+          gl.viewport(0, 0, glcanvas.width, glcanvas.height);
+        }
       }
-      drawVideoFrame();
+      // Inicializar WebGL si aún no se ha hecho
+      if (!gl) {
+        initWebGL();
+      }
+      drawVideoFrame(); // Iniciar el bucle de renderizado WebGL
     };
   } catch (err) {
     console.error('No se pudo acceder a la cámara:', err);
@@ -110,112 +249,66 @@ async function startCamera(deviceId) {
   }
 }
 
+// --- BUCLE PRINCIPAL DE RENDERIZADO WEBG L ---
 function drawVideoFrame() {
-  if (glcanvas.width !== video.videoWidth || glcanvas.height !== video.videoHeight) {
-    glcanvas.width = video.videoWidth;
-    glcanvas.height = video.videoHeight;
-  }
-
-  if (selectedFilter !== 'eco-pink' && selectedFilter !== 'weird') {
-    applyFilterToContext(glContext, selectedFilter);
-  } else {
-    glContext.filter = 'none';
-  }
-
-  glContext.save();
-
-  const isFrontFacing = currentFacingMode === 'user'; // Usar currentFacingMode directamente
-
-  if (isFrontFacing) {
-    glContext.translate(glcanvas.width, 0);
-    glContext.scale(-1, 1);
-  }
-  glContext.drawImage(video, 0, 0, glcanvas.width, glcanvas.height);
-
-  if (selectedFilter === 'eco-pink' || selectedFilter === 'weird') {
-    let imageData = glContext.getImageData(0, 0, glcanvas.width, glcanvas.height);
-    let data = imageData.data;
-
-    for (let i = 0; i < data.length; i += 4) {
-      const r = data[i], g = data[i + 1], b = data[i + 2];
-      const brightness = (r + g + b) / 3;
-
-      if (selectedFilter === 'eco-pink') {
-        if (brightness < 80) {
-          data[i] = Math.min(255, r + 80);
-          data[i + 1] = Math.max(0, g - 50);
-          data[i + 2] = Math.min(255, b + 100);
-        }
-      } else if (selectedFilter === 'weird') {
-        if (brightness > 180) {
-          data[i] = b;
-          data[i + 1] = r;
-          data[i + 2] = g;
-        } else if (brightness < 100) {
-          data[i] = data[i] * 0.5;
-          data[i + 1] = data[i + 1] * 0.5;
-          data[i + 2] = data[i + 2] * 0.5;
-        }
-      }
+    if (!gl || !program || !video.srcObject) {
+        requestAnimationFrame(drawVideoFrame);
+        return;
     }
-    glContext.putImageData(imageData, 0, 0);
-  }
-  glContext.restore();
-  requestAnimationFrame(drawVideoFrame);
+
+    if (video.readyState === video.HAVE_ENOUGH_DATA) {
+        // Actualizar la textura con el fotograma actual del video
+        updateVideoTexture(gl, video);
+
+        // Limpiar el canvas
+        gl.clearColor(0.0, 0.0, 0.0, 1.0); // Fondo negro
+        gl.clear(gl.COLOR_BUFFER_BIT);
+
+        // Usar nuestro programa de shaders
+        gl.useProgram(program);
+
+        // Pasar el uniform para voltear si es cámara frontal
+        const isFrontFacing = currentFacingMode === 'user';
+        gl.uniform1i(program.flipXLocation, isFrontFacing ? 1 : 0);
+
+        // Dibujar el cuadrado
+        gl.drawArrays(gl.TRIANGLES, 0, 6);
+    }
+    requestAnimationFrame(drawVideoFrame);
 }
 
+
+// --- MANEJADORES DE EVENTOS ---
 captureBtn.addEventListener('click', () => {
-  canvas.width = glcanvas.width;
-  canvas.height = glcanvas.height;
-  let ctx = canvas.getContext('2d');
+    // Para la captura de imágenes estáticas, usamos un canvas 2D separado
+    // y dibujamos directamente desde el elemento de video.
+    // NOTA: Los filtros de WebGL NO se aplicarán en la captura hasta que sean reimplementados en GLSL
+    // y la captura se haga desde el glcanvas.
+    canvas.width = video.videoWidth;
+    canvas.height = video.videoHeight;
+    let ctx = canvas.getContext('2d');
 
-  if (selectedFilter === 'eco-pink' || selectedFilter === 'weird') {
-    ctx.filter = 'none';
-    ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-    let imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
-    let data = imageData.data;
-    for (let i = 0; i < data.length; i += 4) {
-      const r = data[i], g = data[i + 1], b = data[i + 2];
-      const brightness = (r + g + b) / 3;
-
-      if (selectedFilter === 'eco-pink') {
-        if (brightness < 80) {
-          data[i] = Math.min(255, r + 80);
-          data[i + 1] = Math.max(0, g - 50);
-          data[i + 2] = Math.min(255, b + 100);
-        }
-      } else if (selectedFilter === 'weird') {
-        if (brightness > 180) {
-          data[i] = b;
-          data[i + 1] = r;
-          data[i + 2] = g;
-        } else if (brightness < 100) {
-          data[i] = data[i] * 0.5;
-          data[i + 1] = data[i + 1] * 0.5;
-          data[i + 2] = data[i + 2] * 0.5;
-        }
-      }
-    }
-    ctx.putImageData(imageData, 0, 0);
-
-  } else {
-    applyFilterToContext(ctx, selectedFilter);
+    // Manejar el espejo para cámaras frontales en la captura (si se desea)
     const isFrontFacing = currentFacingMode === 'user';
     if (isFrontFacing) {
-      ctx.translate(canvas.width, 0);
-      ctx.scale(-1, 1);
+        ctx.translate(canvas.width, 0);
+        ctx.scale(-1, 1);
     }
     ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-  }
+    if (isFrontFacing) { // Restaurar el contexto si se ha volteado
+        ctx.restore();
+    }
 
-  let img = new Image();
-  img.src = canvas.toDataURL('image/png');
-  addToGallery(img, 'img');
+
+    let img = new Image();
+    img.src = canvas.toDataURL('image/png');
+    addToGallery(img, 'img');
 });
 
 recordBtn.addEventListener('click', () => {
   if (!isRecording) {
     chunks = [];
+    // captureStream() funciona con el glcanvas WebGL
     let streamToRecord = glcanvas.captureStream();
     mediaRecorder = new MediaRecorder(streamToRecord, { mimeType: 'video/webm; codecs=vp8' });
 
@@ -265,6 +358,7 @@ filterBtn.addEventListener('click', () => {
 filterSelect.addEventListener('change', () => {
   selectedFilter = filterSelect.value;
   filtersDropdown.style.display = 'none';
+  // Aquí es donde en el futuro, un cambio de filtro actualizaría un uniform en el shader GLSL
 });
 
 fullscreenBtn.addEventListener('click', () => {
@@ -315,7 +409,6 @@ function addToGallery(element, type) {
     }
   };
 
-
   let deleteBtn = document.createElement('button');
   deleteBtn.textContent = 'Eliminar';
   deleteBtn.onclick = () => {
@@ -326,7 +419,7 @@ function addToGallery(element, type) {
   };
 
   actions.appendChild(downloadBtn);
-  if (navigator.share) { // Solo añadir el botón de compartir si la API está disponible
+  if (navigator.share) {
     actions.appendChild(shareBtn);
   }
   actions.appendChild(deleteBtn);
@@ -335,7 +428,7 @@ function addToGallery(element, type) {
   gallery.prepend(container);
 }
 
-// *** LÓGICA DE DOBLE TAP PARA CAMBIAR DE CÁMARA (para móviles) ***
+// --- LÓGICA DE DOBLE TAP PARA CAMBIAR DE CÁMARA (para móviles) ---
 let lastTap = 0;
 const DBL_TAP_THRESHOLD = 300; // Milisegundos entre taps para considerar doble click
 
@@ -344,9 +437,7 @@ video.addEventListener('touchend', (event) => {
     const tapLength = currentTime - lastTap;
 
     if (tapLength < DBL_TAP_THRESHOLD && tapLength > 0) {
-        // Doble tap detectado
-        event.preventDefault(); // Prevenir el zoom por doble tap predeterminado en algunos navegadores
-
+        event.preventDefault(); // Prevenir el zoom por doble tap predeterminado
         if (availableCameraDevices.length > 1) {
             const currentIdx = availableCameraDevices.findIndex(
                 device => device.deviceId === currentCameraDeviceId
@@ -361,7 +452,7 @@ video.addEventListener('touchend', (event) => {
     lastTap = currentTime;
 });
 
-// También mantén el dblclick para desktop, aunque touchend lo cubrirá en móviles
+// También mantén el dblclick para desktop
 video.addEventListener('dblclick', () => {
     if (availableCameraDevices.length > 1) {
         const currentIdx = availableCameraDevices.findIndex(
@@ -375,4 +466,5 @@ video.addEventListener('dblclick', () => {
     }
 });
 
+// Iniciar la aplicación listando las cámaras
 listCameras();
