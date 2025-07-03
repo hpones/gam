@@ -51,6 +51,7 @@ const fsSource = `
     uniform sampler2D u_image;
     uniform bool u_flipX;
     uniform int u_filterType; // Nuevo uniform para seleccionar el filtro
+    uniform vec2 u_resolution; // Nuevo uniform para la resolución del canvas
 
     varying vec2 v_texCoord;
 
@@ -61,6 +62,7 @@ const fsSource = `
     const int FILTER_SEPIA = 3;
     const int FILTER_ECO_PINK = 4;
     const int FILTER_WEIRD = 5;
+    const int FILTER_GLOW_OUTLINE = 6; // Nuevo filtro
 
     void main() {
         vec2 texCoord = v_texCoord;
@@ -68,41 +70,74 @@ const fsSource = `
             texCoord.x = 1.0 - texCoord.x; // Voltear horizontalmente
         }
         vec4 color = texture2D(u_image, texCoord); // Color original del píxel
+        vec3 finalColor = color.rgb;
+        float alpha = color.a;
 
         if (u_filterType == FILTER_GRAYSCALE) {
             float brightness = (color.r * 0.2126 + color.g * 0.7152 + color.b * 0.0722);
-            color = vec4(brightness, brightness, brightness, color.a);
+            finalColor = vec3(brightness);
         } else if (u_filterType == FILTER_INVERT) {
-            color = vec4(1.0 - color.r, 1.0 - color.g, 1.0 - color.b, color.a);
+            finalColor = 1.0 - finalColor;
         } else if (u_filterType == FILTER_SEPIA) {
             float r = color.r;
             float g = color.g;
             float b = color.b;
-            color.r = (r * 0.393) + (g * 0.769) + (b * 0.189);
-            color.g = (r * 0.349) + (g * 0.686) + (b * 0.168);
-            color.b = (r * 0.272) + (g * 0.534) + (b * 0.131);
-            color = clamp(color, 0.0, 1.0); // Asegurarse de que los valores estén en el rango [0, 1]
+            finalColor.r = (r * 0.393) + (g * 0.769) + (b * 0.189);
+            finalColor.g = (r * 0.349) + (g * 0.686) + (b * 0.168);
+            finalColor.b = (r * 0.272) + (g * 0.534) + (b * 0.131);
+            finalColor = clamp(finalColor, 0.0, 1.0);
         } else if (u_filterType == FILTER_ECO_PINK) {
             float brightness = (color.r + color.g + color.b) / 3.0;
-            if (brightness < 0.3137) { // 80 / 255 = 0.3137
-                color.r = min(1.0, color.r + (80.0/255.0));
-                color.g = max(0.0, color.g - (50.0/255.0));
-                color.b = min(1.0, color.b + (100.0/255.0));
+            if (brightness < 0.3137) {
+                finalColor.r = min(1.0, color.r + (80.0/255.0));
+                finalColor.g = max(0.0, color.g - (50.0/255.0));
+                finalColor.b = min(1.0, color.b + (100.0/255.0));
             }
         } else if (u_filterType == FILTER_WEIRD) {
             float brightness = (color.r + color.g + color.b) / 3.0;
-            if (brightness > 0.7058) { // 180 / 255 = 0.7058
-                // Intercambiar canales R, G, B
+            if (brightness > 0.7058) {
                 float temp_r = color.r;
-                color.r = color.b;
-                color.b = color.g;
-                color.g = temp_r;
-            } else if (brightness < 0.3921) { // 100 / 255 = 0.3921
-                // Reducir brillo
-                color.rgb *= 0.5;
+                finalColor.r = color.b;
+                finalColor.b = color.g;
+                finalColor.g = temp_r;
+            } else if (brightness < 0.3921) {
+                finalColor *= 0.5;
             }
+        } else if (u_filterType == FILTER_GLOW_OUTLINE) {
+            // --- Detección de Bordes Simplificada ---
+            // Tamaño de un píxel en coordenadas de textura
+            vec2 onePixel = vec2(1.0, 1.0) / u_resolution; 
+            
+            // Muestreo de píxeles vecinos
+            vec4 up = texture2D(u_image, texCoord + vec2(0.0, onePixel.y));
+            vec4 down = texture2D(u_image, texCoord - vec2(0.0, onePixel.y));
+            vec4 left = texture2D(u_image, texCoord - vec2(onePixel.x, 0.0));
+            vec4 right = texture2D(u_image, texCoord + vec2(onePixel.x, 0.0));
+
+            // Calcular la diferencia de color para detectar bordes
+            // Suma de las diferencias absolutas de color en el canal rojo (simplificado)
+            float diff = abs(color.r - up.r) + abs(color.r - down.r) + abs(color.r - left.r) + abs(color.r - right.r);
+            
+            // Suavizar el borde para que no sea tan abrupto
+            float edge = smoothstep(0.01, 0.1, diff); // Ajusta estos valores para cambiar la "sensibilidad" del borde
+            vec3 outlineColor = vec3(1.0, 1.0, 1.0); // Color del contorno (blanco)
+
+            // --- Efecto de Glow Simplificado ---
+            // Calcular el brillo del píxel actual
+            float brightness = dot(color.rgb, vec3(0.299, 0.587, 0.114)); // Fórmula de luminancia
+            
+            // Determinar un factor de "glow" basado en el brillo
+            // smoothstep crea un "fade" suave del glow. Ajusta 0.7 y 1.0 para el rango de brillo.
+            // Multiplicar por 0.5 (o más) para controlar la intensidad del glow.
+            float glowFactor = smoothstep(0.7, 1.0, brightness) * 0.5; 
+
+            // Combinar el color original (con glow) y el color del contorno
+            // Si hay un borde fuerte (edge cerca de 1.0), mezcla más el outlineColor.
+            // Si no hay borde, el finalColor es el color original + glow.
+            finalColor = mix(finalColor + glowFactor, outlineColor, edge);
         }
-        gl_FragColor = color;
+
+        gl_FragColor = vec4(finalColor, alpha);
     }
 `;
 
@@ -181,7 +216,6 @@ function updateVideoTexture(gl, video) {
 
 // --- FUNCIÓN DE INICIALIZACIÓN WEBG L ---
 function initWebGL() {
-    // CAMBIO AQUI: Añadir { preserveDrawingBuffer: true }
     gl = glcanvas.getContext('webgl', { preserveDrawingBuffer: true }); 
     if (!gl) {
         alert('Tu navegador no soporta WebGL. No se podrán aplicar filtros avanzados.');
@@ -200,6 +234,7 @@ function initWebGL() {
     program.imageLocation = gl.getUniformLocation(program, 'u_image');
     program.flipXLocation = gl.getUniformLocation(program, 'u_flipX');
     filterTypeLocation = gl.getUniformLocation(program, 'u_filterType'); // Obtener ubicación del uniform del filtro
+    program.resolutionLocation = gl.getUniformLocation(program, 'u_resolution'); // **NUEVO: Obtener ubicación del uniform de resolución**
 
     gl.enableVertexAttribArray(program.positionLocation);
     gl.enableVertexAttribArray(program.texCoordLocation);
@@ -319,6 +354,9 @@ function drawVideoFrame() {
 
     const isFrontFacing = currentFacingMode === 'user';
     gl.uniform1i(program.flipXLocation, isFrontFacing ? 1 : 0);
+    
+    // **NUEVO: Pasar la resolución al shader**
+    gl.uniform2f(program.resolutionLocation, glcanvas.width, glcanvas.height);
 
     let filterIndex = 0; // FILTER_NONE por defecto
     switch (selectedFilter) {
@@ -327,6 +365,7 @@ function drawVideoFrame() {
         case 'sepia': filterIndex = 3; break;     // FILTER_SEPIA
         case 'eco-pink': filterIndex = 4; break;  // FILTER_ECO_PINK
         case 'weird': filterIndex = 5; break;     // FILTER_WEIRD
+        case 'glow-outline': filterIndex = 6; break; // **NUEVO: Filtro Glow con contorno**
         default: filterIndex = 0; break;
     }
     gl.uniform1i(filterTypeLocation, filterIndex);
@@ -344,10 +383,8 @@ captureBtn.addEventListener('click', () => {
         return;
     }
 
-    // Ya no usamos gl.readPixels() y la manipulación de ImageData
-    // Simplemente obtenemos la imagen directamente del WebGL canvas usando toDataURL()
     let img = new Image();
-    img.src = glcanvas.toDataURL('image/png'); // Esto obtiene la imagen renderizada del WebGL canvas
+    img.src = glcanvas.toDataURL('image/png'); 
     
     img.onload = () => {
         console.log('Imagen cargada para la galería desde glcanvas.toDataURL().');
