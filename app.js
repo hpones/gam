@@ -12,9 +12,8 @@ let filtersDropdown = document.getElementById('filters-dropdown');
 let gallery = document.getElementById('gallery');
 let controls = document.getElementById('controls');
 let recordingControls = document.getElementById('recording-controls');
-let cameraContainer = document.getElementById('camera-container'); // Nueva referencia para el contenedor de la cámara
+let cameraContainer = document.getElementById('camera-container');
 
-// Nuevos elementos para la selección de cámara y el panel
 let cameraPanel = document.getElementById('camera-panel');
 let cameraPanelHeader = document.getElementById('camera-panel-header');
 let minimizeCameraPanelBtn = document.getElementById('minimize-camera-panel');
@@ -29,13 +28,17 @@ let isRecording = false;
 let isPaused = false;
 let selectedFilter = 'none';
 let currentCameraDeviceId = null;
+let currentFacingMode = null; // Para optimizar la detección del espejo de la cámara
 
-// Variables para el arrastre del panel
 let isDragging = false;
 let offsetX, offsetY;
 
-function applyFilter(ctx) {
-  switch (selectedFilter) {
+// Cache del contexto 2D del glcanvas para evitar obtenerlo en cada frame
+const glContext = glcanvas.getContext('2d');
+
+function applyFilterToContext(ctx, filterType) {
+  // Aplicar filtros CSS nativos directamente al contexto
+  switch (filterType) {
     case 'grayscale':
       ctx.filter = 'grayscale(100%)';
       break;
@@ -44,10 +47,6 @@ function applyFilter(ctx) {
       break;
     case 'sepia':
       ctx.filter = 'sepia(100%)';
-      break;
-    case 'eco-pink':
-    case 'weird':
-      ctx.filter = 'none';
       break;
     default:
       ctx.filter = 'none';
@@ -60,7 +59,7 @@ async function listCameras() {
     const devices = await navigator.mediaDevices.enumerateDevices();
     const videoDevices = devices.filter(device => device.kind === 'videoinput');
 
-    cameraSelect.innerHTML = ''; // Limpiar opciones anteriores
+    cameraSelect.innerHTML = '';
     if (videoDevices.length > 0) {
       videoDevices.forEach(device => {
         const option = document.createElement('option');
@@ -69,13 +68,11 @@ async function listCameras() {
         cameraSelect.appendChild(option);
       });
 
-      // Si no hay una cámara seleccionada, o si la cámara actual ya no está disponible,
-      // selecciona la primera disponible.
       if (!currentCameraDeviceId || !videoDevices.some(d => d.deviceId === currentCameraDeviceId)) {
         currentCameraDeviceId = videoDevices[0].deviceId;
       }
-      cameraSelect.value = currentCameraDeviceId; // Asegura que el select muestre la cámara activa
-      startCamera(currentCameraDeviceId); // Iniciar la cámara con la seleccionada
+      cameraSelect.value = currentCameraDeviceId;
+      startCamera(currentCameraDeviceId);
     } else {
       alert('No se encontraron dispositivos de cámara.');
     }
@@ -92,7 +89,7 @@ async function startCamera(deviceId) {
 
   const constraints = {
     video: {
-      deviceId: deviceId ? { exact: deviceId } : undefined, // Usa el ID de dispositivo exacto
+      deviceId: deviceId ? { exact: deviceId } : undefined,
       width: { ideal: 1280 },
       height: { ideal: 720 }
     },
@@ -104,10 +101,17 @@ async function startCamera(deviceId) {
     video.srcObject = currentStream;
     currentCameraDeviceId = deviceId || currentStream.getVideoTracks()[0].getSettings().deviceId;
 
+    const videoTrack = currentStream.getVideoTracks()[0];
+    const settings = videoTrack.getSettings();
+    currentFacingMode = settings.facingMode || 'unknown'; // Cache facingMode
+
     video.onloadedmetadata = () => {
       video.play();
-      glcanvas.width = video.videoWidth;
-      glcanvas.height = video.videoHeight;
+      // Solo redimensionar el canvas si sus dimensiones cambian
+      if (glcanvas.width !== video.videoWidth || glcanvas.height !== video.videoHeight) {
+        glcanvas.width = video.videoWidth;
+        glcanvas.height = video.videoHeight;
+      }
       drawVideoFrame();
     };
   } catch (err) {
@@ -117,77 +121,113 @@ async function startCamera(deviceId) {
 }
 
 function drawVideoFrame() {
-  const ctx = glcanvas.getContext('2d');
-  function draw() {
-    if (video.readyState === video.HAVE_ENOUGH_DATA) {
-      glcanvas.width = video.videoWidth;
-      glcanvas.height = video.videoHeight;
-      applyFilter(ctx);
-      ctx.save();
-
-      const videoTrack = currentStream.getVideoTracks()[0];
-      const settings = videoTrack.getSettings();
-      // 'user' para cámara frontal, 'environment' para trasera.
-      // Si facingMode no está disponible o es 'user', asumimos frontal y aplicamos espejo.
-      const isFrontFacing = settings.facingMode === 'user' || !settings.facingMode;
-
-      if (isFrontFacing) {
-        ctx.translate(glcanvas.width, 0);
-        ctx.scale(-1, 1);
-      }
-      ctx.drawImage(video, 0, 0, glcanvas.width, glcanvas.height);
-
-      if (selectedFilter === 'eco-pink' || selectedFilter === 'weird') {
-        let imageData = ctx.getImageData(0, 0, glcanvas.width, glcanvas.height);
-        let data = imageData.data;
-
-        for (let i = 0; i < data.length; i += 4) {
-          const r = data[i], g = data[i + 1], b = data[i + 2];
-          const brightness = (r + g + b) / 3;
-
-          if (selectedFilter === 'eco-pink') {
-            if (brightness < 80) {
-              const noise = (Math.random() - 0.5) * 100;
-              data[i] = Math.min(255, r + 80);
-              data[i + 1] = Math.max(0, g - 50);
-              data[i + 2] = Math.min(255, b + 100);
-            }
-          } else if (selectedFilter === 'weird') {
-            if (brightness > 180) {
-              data[i] = b;
-              data[i + 1] = r;
-              data[i + 2] = g;
-            } else if (brightness < 100) {
-              data[i] = data[i] * Math.random();
-              data[i + 1] = data[i + 1] * Math.random();
-              data[i + 2] = data[i + 2] * Math.random();
-            }
-          }
-        }
-        ctx.putImageData(imageData, 0, 0);
-      }
-      ctx.restore();
-    }
-    requestAnimationFrame(draw);
+  // Solo actualiza las dimensiones del canvas si el video cambia de tamaño (poco común después de loadedmetadata)
+  if (glcanvas.width !== video.videoWidth || glcanvas.height !== video.videoHeight) {
+    glcanvas.width = video.videoWidth;
+    glcanvas.height = video.videoHeight;
   }
-  draw();
+
+  // Aplicar filtros CSS si no son los filtros de píxeles personalizados
+  if (selectedFilter !== 'eco-pink' && selectedFilter !== 'weird') {
+    applyFilterToContext(glContext, selectedFilter);
+  } else {
+    // Si es un filtro personalizado de píxeles, asegúrate de que el filtro CSS nativo esté en 'none'
+    glContext.filter = 'none';
+  }
+
+  glContext.save();
+
+  // 'user' para cámara frontal, 'environment' para trasera. Si facingMode no está disponible o es 'user', asumimos frontal y aplicamos espejo.
+  const isFrontFacing = currentFacingMode === 'user' || currentFacingMode === 'unknown';
+
+  if (isFrontFacing) {
+    glContext.translate(glcanvas.width, 0);
+    glContext.scale(-1, 1);
+  }
+  glContext.drawImage(video, 0, 0, glcanvas.width, glcanvas.height);
+
+  // Aplicar filtros de píxeles personalizados
+  if (selectedFilter === 'eco-pink' || selectedFilter === 'weird') {
+    let imageData = glContext.getImageData(0, 0, glcanvas.width, glcanvas.height);
+    let data = imageData.data;
+
+    for (let i = 0; i < data.length; i += 4) {
+      const r = data[i], g = data[i + 1], b = data[i + 2];
+      const brightness = (r + g + b) / 3;
+
+      if (selectedFilter === 'eco-pink') {
+        if (brightness < 80) {
+          // Valores fijos en lugar de Math.random() para consistencia y rendimiento en cada frame
+          data[i] = Math.min(255, r + 80);
+          data[i + 1] = Math.max(0, g - 50);
+          data[i + 2] = Math.min(255, b + 100);
+        }
+      } else if (selectedFilter === 'weird') {
+        if (brightness > 180) {
+          data[i] = b;
+          data[i + 1] = r;
+          data[i + 2] = g;
+        } else if (brightness < 100) {
+          // Valores fijos o precalculados para evitar Math.random() en cada frame
+          // Si necesitas variación, considérala fuera del bucle de cada frame o con un generador de ruido predecible
+          data[i] = data[i] * 0.5; // Ejemplo de valor fijo
+          data[i + 1] = data[i + 1] * 0.5;
+          data[i + 2] = data[i + 2] * 0.5;
+        }
+      }
+    }
+    glContext.putImageData(imageData, 0, 0);
+  }
+  glContext.restore();
+  requestAnimationFrame(drawVideoFrame); // Se llama a sí misma para el siguiente frame
 }
 
 captureBtn.addEventListener('click', () => {
   canvas.width = glcanvas.width;
   canvas.height = glcanvas.height;
   let ctx = canvas.getContext('2d');
-  applyFilter(ctx);
 
-  const videoTrack = currentStream.getVideoTracks()[0];
-  const settings = videoTrack.getSettings();
-  const isFrontFacing = settings.facingMode === 'user' || !settings.facingMode;
+  // Aplicar filtros de píxeles personalizados si es el caso, de lo contrario aplicar el CSS filter
+  if (selectedFilter === 'eco-pink' || selectedFilter === 'weird') {
+    ctx.filter = 'none'; // Asegurarse de que no haya filtros CSS nativos
+    ctx.drawImage(video, 0, 0, canvas.width, canvas.height); // Dibujar primero sin filtro CSS
+    // Procesar los píxeles directamente
+    let imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+    let data = imageData.data;
+    for (let i = 0; i < data.length; i += 4) {
+      const r = data[i], g = data[i + 1], b = data[i + 2];
+      const brightness = (r + g + b) / 3;
 
-  if (isFrontFacing) {
-    ctx.translate(canvas.width, 0);
-    ctx.scale(-1, 1);
+      if (selectedFilter === 'eco-pink') {
+        if (brightness < 80) {
+          data[i] = Math.min(255, r + 80);
+          data[i + 1] = Math.max(0, g - 50);
+          data[i + 2] = Math.min(255, b + 100);
+        }
+      } else if (selectedFilter === 'weird') {
+        if (brightness > 180) {
+          data[i] = b;
+          data[i + 1] = r;
+          data[i + 2] = g;
+        } else if (brightness < 100) {
+          data[i] = data[i] * 0.5;
+          data[i + 1] = data[i + 1] * 0.5;
+          data[i + 2] = data[i + 2] * 0.5;
+        }
+      }
+    }
+    ctx.putImageData(imageData, 0, 0);
+
+  } else {
+    applyFilterToContext(ctx, selectedFilter); // Aplicar filtro CSS nativo
+    const isFrontFacing = currentFacingMode === 'user' || currentFacingMode === 'unknown';
+    if (isFrontFacing) {
+      ctx.translate(canvas.width, 0);
+      ctx.scale(-1, 1);
+    }
+    ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
   }
-  ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+
   let img = new Image();
   img.src = canvas.toDataURL('image/png');
   addToGallery(img, 'img');
@@ -196,8 +236,10 @@ captureBtn.addEventListener('click', () => {
 recordBtn.addEventListener('click', () => {
   if (!isRecording) {
     chunks = [];
+    // Capturar el stream del canvas con los filtros aplicados por el glContext
     let streamToRecord = glcanvas.captureStream();
-    mediaRecorder = new MediaRecorder(streamToRecord);
+    mediaRecorder = new MediaRecorder(streamToRecord, { mimeType: 'video/webm; codecs=vp8' }); // Especificar codec para mejor compatibilidad
+
     mediaRecorder.ondataavailable = e => {
       if (e.data.size > 0) chunks.push(e.data);
     };
@@ -207,6 +249,11 @@ recordBtn.addEventListener('click', () => {
       let vid = document.createElement('video');
       vid.src = url;
       vid.controls = true;
+      // Añadir evento para revocar la URL del objeto cuando el video se cargue o se elimine del DOM
+      vid.onloadedmetadata = () => {
+        vid.play(); // Reproducir automáticamente si lo deseas
+      };
+      // Aquí el URL se revocará cuando el elemento de video sea removido del DOM por la función `deleteBtn.onclick`
       addToGallery(vid, 'video');
     };
     mediaRecorder.start();
@@ -235,18 +282,21 @@ stopBtn.addEventListener('click', () => {
 });
 
 filterBtn.addEventListener('click', () => {
-  filtersDropdown.style.display =
-    filtersDropdown.style.display === 'block' ? 'none' : 'block';
+  // Alternar la visibilidad de manera más eficiente
+  filtersDropdown.style.display = (filtersDropdown.style.display === 'block') ? 'none' : 'block';
 });
 
 filterSelect.addEventListener('change', () => {
   selectedFilter = filterSelect.value;
   filtersDropdown.style.display = 'none';
+  // Redibujar inmediatamente para aplicar el filtro al canvas de GL
+  // (aunque drawVideoFrame ya lo hará en el siguiente requestAnimationFrame)
+  // No es estrictamente necesario, pero asegura que el cambio sea instantáneo.
 });
 
 fullscreenBtn.addEventListener('click', () => {
   if (!document.fullscreenElement) {
-    cameraContainer.requestFullscreen(); // Entra en fullscreen el contenedor principal
+    cameraContainer.requestFullscreen();
   } else {
     document.exitFullscreen();
   }
@@ -271,7 +321,13 @@ function addToGallery(element, type) {
 
   let deleteBtn = document.createElement('button');
   deleteBtn.textContent = 'Eliminar';
-  deleteBtn.onclick = () => container.remove();
+  deleteBtn.onclick = () => {
+    // Revocar la URL del objeto al eliminar el elemento de la galería
+    if (type === 'video' && element.src.startsWith('blob:')) {
+      URL.revokeObjectURL(element.src);
+    }
+    container.remove();
+  };
 
   actions.appendChild(downloadBtn);
   actions.appendChild(deleteBtn);
@@ -280,7 +336,6 @@ function addToGallery(element, type) {
   gallery.prepend(container);
 }
 
-// Event listener para el cambio de cámara
 switchCameraButton.addEventListener('click', () => {
   const selectedDeviceId = cameraSelect.value;
   if (selectedDeviceId && selectedDeviceId !== currentCameraDeviceId) {
@@ -288,50 +343,37 @@ switchCameraButton.addEventListener('click', () => {
   }
 });
 
-// Lógica para el panel de cámara (minimizar/maximizar)
 cameraPanelHeader.addEventListener('click', (e) => {
-  // Evitar que el click en el header para minimizar/maximizar inicie el arrastre
   if (e.target.id === 'minimize-camera-panel' || e.target.tagName === 'SPAN') {
     cameraPanelContent.classList.toggle('hidden');
     cameraPanel.classList.toggle('minimized');
-    if (cameraPanelContent.classList.contains('hidden')) {
-      minimizeCameraPanelBtn.textContent = '+';
-    } else {
-      minimizeCameraPanelBtn.textContent = '-';
-    }
+    minimizeCameraPanelBtn.textContent = cameraPanelContent.classList.contains('hidden') ? '+' : '-';
   }
 });
 
 // Lógica para arrastrar el panel de cámara
 cameraPanel.addEventListener('mousedown', (e) => {
-  // Solo arrastrar si no se hizo click en el select o el botón de cambiar cámara
-  if (e.target.id !== 'cameraSelect' && e.target.id !== 'switchCameraButton') {
+  if (e.target.id !== 'cameraSelect' && e.target.id !== 'switchCameraButton' && e.target.parentNode !== cameraPanelContent) {
     isDragging = true;
     offsetX = e.clientX - cameraPanel.getBoundingClientRect().left;
     offsetY = e.clientY - cameraPanel.getBoundingClientRect().top;
     cameraPanel.style.cursor = 'grabbing';
+    e.preventDefault(); // Evitar selección de texto u otros comportamientos por defecto
   }
 });
 
 document.addEventListener('mousemove', (e) => {
   if (!isDragging) return;
 
-  // Calcula las nuevas posiciones
   let newX = e.clientX - offsetX;
   let newY = e.clientY - offsetY;
 
-  // Limita el arrastre dentro del contenedor de la cámara
   const containerRect = cameraContainer.getBoundingClientRect();
   const panelRect = cameraPanel.getBoundingClientRect();
 
-  // Limitar en X
-  if (newX < 0) newX = 0;
-  if (newX + panelRect.width > containerRect.width) newX = containerRect.width - panelRect.width;
-
-  // Limitar en Y
-  if (newY < 0) newY = 0;
-  if (newY + panelRect.height > containerRect.height) newY = containerRect.height - panelRect.height;
-
+  // Limitar arrastre para que el panel no salga del contenedor
+  newX = Math.max(0, Math.min(newX, containerRect.width - panelRect.width));
+  newY = Math.max(0, Math.min(newY, containerRect.height - panelRect.height));
 
   cameraPanel.style.left = newX + 'px';
   cameraPanel.style.top = newY + 'px';
@@ -342,6 +384,4 @@ document.addEventListener('mouseup', () => {
   cameraPanel.style.cursor = 'grab';
 });
 
-
-// Inicializar la lista de cámaras al cargar la página
 listCameras();
