@@ -598,11 +598,11 @@ recordBtn.addEventListener('click', () => {
 pauseBtn.addEventListener('click', () => {
   if (isPaused) {
     mediaRecorder.resume();
-    pauseBtn.textContent = '⏸️';
+    pauseBtn.textContent = '⏸';
     console.log('Grabación reanudada.');
   } else {
     mediaRecorder.pause();
-    pauseBtn.textContent = '▶️';
+    pauseBtn.textContent = '▶';
     console.log('Grabación pausada.');
   }
   isPaused = !isPaused;
