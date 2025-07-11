@@ -2,25 +2,50 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <title>GAM - App</title>
+  <title>GAM App</title>
   <style>
     body {
       margin: 0;
       overflow: hidden;
-      background: black;
+      background-color: black;
     }
 
     canvas {
       display: block;
     }
 
-    #filterSelector {
+    .boton-filtros {
       position: absolute;
       top: 10px;
       left: 10px;
-      z-index: 1000;
-      padding: 5px;
-      font-size: 16px;
+      background-color: yellow;
+      padding: 10px;
+      font-weight: bold;
+      z-index: 999;
+      cursor: pointer;
+    }
+
+    .menu-filtros {
+      position: absolute;
+      top: 50px;
+      left: 10px;
+      background-color: #fff;
+      border: 1px solid #ccc;
+      display: none;
+      z-index: 999;
+    }
+
+    .menu-filtros button {
+      display: block;
+      width: 100%;
+      padding: 10px;
+      border: none;
+      background-color: #fff;
+      cursor: pointer;
+    }
+
+    .menu-filtros button:hover {
+      background-color: #f0f0f0;
     }
   </style>
 
@@ -31,16 +56,16 @@
   <script src="https://cdn.jsdelivr.net/npm/@mediapipe/selfie_segmentation/selfie_segmentation.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js"></script>
 </head>
-
 <body>
-  <!-- Selector de filtros -->
-  <select id="filterSelector">
-    <option value="none">🎥 Sin filtro</option>
-    <option value="whiteGlow">✨ Contorno blanco brillante</option>
-    <option value="inverseMask">🌓 Máscara inversa</option>
-    <option value="blackBg">🕶️ Fondo negro</option>
-    <option value="whiteBg">💡 Fondo blanco</option>
-  </select>
+
+  <div class="boton-filtros">🎛️ Filtros</div>
+  <div class="menu-filtros" id="menuFiltros">
+    <button data-filtro="none">🎥 Sin filtro</button>
+    <button data-filtro="whiteGlow">✨ Contorno blanco brillante</button>
+    <button data-filtro="inverseMask">🌓 Máscara inversa</button>
+    <button data-filtro="blackBg">🕶️ Fondo negro</button>
+    <button data-filtro="whiteBg">💡 Fondo blanco</button>
+  </div>
 
   <script>
     let video;
@@ -48,9 +73,21 @@
     let selfieSegmentation;
     let camera;
     let currentFilter = "none";
+    let usandoMediaPipe = false;
 
-    document.getElementById("filterSelector").addEventListener("change", (e) => {
-      currentFilter = e.target.value;
+    // Mostrar u ocultar menú de filtros
+    document.querySelector(".boton-filtros").addEventListener("click", () => {
+      const menu = document.getElementById("menuFiltros");
+      menu.style.display = menu.style.display === "block" ? "none" : "block";
+    });
+
+    // Manejar selección de filtros
+    document.querySelectorAll("#menuFiltros button").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        currentFilter = btn.getAttribute("data-filtro");
+        usandoMediaPipe = ["whiteGlow", "inverseMask", "blackBg", "whiteBg"].includes(currentFilter);
+        document.getElementById("menuFiltros").style.display = "none";
+      });
     });
 
     function setup() {
@@ -66,15 +103,14 @@
           `https://cdn.jsdelivr.net/npm/@mediapipe/selfie_segmentation/${file}`,
       });
 
-      selfieSegmentation.setOptions({
-        modelSelection: 1,
-      });
-
+      selfieSegmentation.setOptions({ modelSelection: 1 });
       selfieSegmentation.onResults(onResults);
 
       camera = new Camera(video.elt, {
         onFrame: async () => {
-          await selfieSegmentation.send({ image: video.elt });
+          if (usandoMediaPipe) {
+            await selfieSegmentation.send({ image: video.elt });
+          }
         },
         width: width,
         height: height,
@@ -84,7 +120,9 @@
     }
 
     function draw() {
-      // Canvas actualizado en onResults
+      if (!usandoMediaPipe) {
+        image(video, 0, 0, width, height);
+      }
     }
 
     function onResults(results) {
