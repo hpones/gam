@@ -27,6 +27,7 @@ let isPaused = false;
 let selectedFilter = 'none';
 let currentCameraDeviceId = null;
 let currentFacingMode = null; // 'user' (frontal) o 'environment' (trasera)
+let lastRecordedMimeType = ''; // Nueva variable para almacenar el MIME type de la última grabación
 
 // --- VARIABLES Y CONFIGURACIÓN DE WEBG L ---
 let gl; // Contexto WebGL
@@ -629,22 +630,38 @@ recordBtn.addEventListener('click', async () => {
         return;
     }
 
-    // Prioritize MP4 if supported, fallback to webm
-    let mimeType = 'video/webm; codecs=vp8'; // Default fallback
-    if (MediaRecorder.isTypeSupported('video/mp4')) { // More generic MP4 check
-        mimeType = 'video/mp4';
-    } else if (MediaRecorder.isTypeSupported('video/webm; codecs=vp9')) {
-        mimeType = 'video/webm; codecs=vp9'; // Better quality webm
+    // Attempt to prioritize MP4 with common codecs, fallback to WebM
+    let preferredMimeType = 'video/webm; codecs=vp8'; // Default fallback
+    const possibleMimeTypes = [
+        'video/mp4; codecs=avc1.42E01E,mp4a.40.2', // H.264 High Profile, AAC
+        'video/mp4; codecs=avc1.42E01E', // H.264 High Profile only (no audio)
+        'video/mp4', // Generic MP4
+        'video/webm; codecs=vp9', // Better WebM
+        'video/webm; codecs=vp8' // Basic WebM
+    ];
+
+    for (const type of possibleMimeTypes) {
+        if (MediaRecorder.isTypeSupported(type)) {
+            preferredMimeType = type;
+            break;
+        }
     }
+    console.log('Usando MIME type para grabación:', preferredMimeType);
+    lastRecordedMimeType = preferredMimeType; // Store the MIME type used for recording
 
     let streamToRecord = targetCanvas.captureStream();
-    mediaRecorder = new MediaRecorder(streamToRecord, { mimeType: mimeType });
+    // Add audio track from currentStream if available
+    if (currentStream && currentStream.getAudioTracks().length > 0) {
+        streamToRecord.addTrack(currentStream.getAudioTracks()[0]);
+    }
+
+    mediaRecorder = new MediaRecorder(streamToRecord, { mimeType: preferredMimeType });
 
     mediaRecorder.ondataavailable = e => {
       if (e.data.size > 0) chunks.push(e.data);
     };
     mediaRecorder.onstop = async () => {
-      const blob = new Blob(chunks, { type: mimeType });
+      const blob = new Blob(chunks, { type: lastRecordedMimeType }); // Use the stored MIME type for blob
       const url = URL.createObjectURL(blob);
       let vid = document.createElement('video');
       vid.src = url;
@@ -654,7 +671,7 @@ recordBtn.addEventListener('click', async () => {
       vid.loop = true; // Loop for better preview experience
 
       vid.onloadedmetadata = () => {
-        addToGallery(vid, 'video', url);
+        addToGallery(vid, 'video', url, lastRecordedMimeType); // Pass mimeType to addToGallery
       };
     };
     mediaRecorder.start();
@@ -708,7 +725,7 @@ fullscreenBtn.addEventListener('click', () => {
   }
 });
 
-function addToGallery(element, type, srcUrl) {
+function addToGallery(element, type, srcUrl, mimeTypeForDownload = '') { // Added mimeTypeForDownload parameter
   let container = document.createElement('div');
   container.className = 'gallery-item';
 
@@ -747,15 +764,19 @@ function addToGallery(element, type, srcUrl) {
   downloadBtn.onclick = () => {
     const a = document.createElement('a');
     a.href = srcUrl; // Use the actual blob URL or data URL
-    // Adjust download filename based on the actual MIME type of the blob
+    
+    // Determine file extension based on the MIME type used for recording
     let fileExtension = 'bin'; // Default fallback extension
-    if (srcUrl.includes('image/png') || srcUrl.includes('image/jpeg')) {
+    const effectiveMimeType = mimeTypeForDownload || (type === 'video' ? lastRecordedMimeType : 'image/png'); // Use passed mimeTypeForDownload or lastRecordedMimeType
+
+    if (effectiveMimeType.includes('image/png')) {
         fileExtension = 'png';
-    } else if (srcUrl.includes('video/mp4')) {
+    } else if (effectiveMimeType.includes('video/mp4')) {
         fileExtension = 'mp4';
-    } else if (srcUrl.includes('video/webm')) {
+    } else if (effectiveMimeType.includes('video/webm')) {
         fileExtension = 'webm';
     }
+    
     a.download = type === 'img' ? `foto_${Date.now()}.png` : `video_${Date.now()}.${fileExtension}`;
     a.click();
   };
