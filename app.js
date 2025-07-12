@@ -24,7 +24,7 @@ let mediaRecorder;
 let chunks = [];
 let isRecording = false;
 let isPaused = false;
-let selectedFilter = 'none'; 
+let selectedFilter = 'none';
 let currentCameraDeviceId = null;
 let currentFacingMode = null; // 'user' (frontal) o 'environment' (trasera)
 
@@ -41,8 +41,8 @@ let timeLocation; // Ubicación del uniform para el tiempo (para efectos dinámi
 let audioContext;
 let analyser;
 let microphone;
-let dataArray; 
-const AUDIO_THRESHOLD = 0.15; 
+let dataArray;
+const AUDIO_THRESHOLD = 0.15;
 
 let paletteIndex = 0;
 const palettes = [
@@ -53,7 +53,7 @@ const palettes = [
     [1.0, 0.0, 1.0],    // Magenta
     [0.0, 1.0, 1.0],    // Cyan
 ];
-let colorShiftUniformLocation; 
+let colorShiftUniformLocation;
 
 // --- NUEVOS UNIFORMS PARA EL FILTRO MODULAR COLOR SHIFT ---
 let bassAmpUniformLocation;
@@ -62,7 +62,7 @@ let highAmpUniformLocation;
 
 // --- VARIABLES DE MEDIAPIPE ---
 let selfieSegmentation;
-let mpCamera; 
+let mpCamera;
 
 // Vertex Shader: define la posición de los vértices y las coordenadas de textura
 const vsSource = `
@@ -83,10 +83,10 @@ const fsSource = `
 
     uniform sampler2D u_image;
     uniform bool u_flipX;
-    uniform int u_filterType; 
-    uniform vec2 u_resolution; 
-    uniform float u_time; 
-    uniform vec3 u_colorShift; 
+    uniform int u_filterType;
+    uniform vec2 u_resolution;
+    uniform float u_time;
+    uniform vec3 u_colorShift;
 
     uniform float u_bassAmp;
     uniform float u_midAmp;
@@ -103,12 +103,12 @@ const fsSource = `
     const int FILTER_GLOW_OUTLINE = 6;
     const int FILTER_ANGELICAL_GLITCH = 7;
     const int FILTER_AUDIO_COLOR_SHIFT = 8;
-    const int FILTER_MODULAR_COLOR_SHIFT = 9; 
+    const int FILTER_MODULAR_COLOR_SHIFT = 9;
 
     float random(vec2 st) {
         return fract(sin(dot(st.xy, vec2(12.9898,78.233))) * 43758.5453123);
     }
-    
+
     float brightness(vec3 color) {
         return dot(color, vec3(0.299, 0.587, 0.114));
     }
@@ -116,9 +116,9 @@ const fsSource = `
     void main() {
         vec2 texCoord = v_texCoord;
         if (u_flipX) {
-            texCoord.x = 1.0 - texCoord.x; 
+            texCoord.x = 1.0 - texCoord.x;
         }
-        vec4 color = texture2D(u_image, texCoord); 
+        vec4 color = texture2D(u_image, texCoord);
         vec3 finalColor = color.rgb;
         float alpha = color.a;
 
@@ -185,7 +185,7 @@ const fsSource = `
                 (random(uv + vec2(sin(u_time * 0.1), cos(u_time * 0.1))) - 0.5) * 0.1,
                 (random(uv + vec2(cos(u_time * 0.1), sin(u_time * 0.1))) - 0.5) * 0.1
             );
-            
+
             vec4 distorted = texture2D(u_image, uv + distortion);
 
             if (b > 0.5) {
@@ -200,23 +200,23 @@ const fsSource = `
                 finalColor = distorted.rgb;
             }
             alpha = col.a;
-        } else if (u_filterType == FILTER_AUDIO_COLOR_SHIFT) { 
+        } else if (u_filterType == FILTER_AUDIO_COLOR_SHIFT) {
             finalColor = mod(color.rgb + u_colorShift, 1.0);
-        } else if (u_filterType == FILTER_MODULAR_COLOR_SHIFT) { 
-            const vec3 palette0 = vec3(80.0/255.0, 120.0/255.0, 180.0/255.0); 
-            const vec3 palette1 = vec3(100.0/255.0, 180.0/255.0, 200.0/255.0); 
-            const vec3 palette2 = vec3(120.0/255.0, 150.0/255.0, 255.0/255.0); 
+        } else if (u_filterType == FILTER_MODULAR_COLOR_SHIFT) {
+            const vec3 palette0 = vec3(80.0/255.0, 120.0/255.0, 180.0/255.0);
+            const vec3 palette1 = vec3(100.0/255.0, 180.0/255.0, 200.0/255.0);
+            const vec3 palette2 = vec3(120.0/255.0, 150.0/255.0, 255.0/255.0);
 
-            float brightness_val = (color.r + color.g + color.b) / 3.0; 
+            float brightness_val = (color.r + color.g + color.b) / 3.0;
 
-            if (brightness_val > (170.0/255.0)) { 
+            if (brightness_val > (170.0/255.0)) {
                 finalColor.rgb = mix(color.rgb, palette2, u_highAmp);
-            } else if (brightness_val > (100.0/255.0)) { 
+            } else if (brightness_val > (100.0/255.0)) {
                 finalColor.rgb = mix(color.rgb, palette1, u_midAmp);
-            } else { 
+            } else {
                 finalColor.rgb = mix(color.rgb, palette0, u_bassAmp);
             }
-            finalColor.rgb = clamp(finalColor.rgb, 0.0, 1.0); 
+            finalColor.rgb = clamp(finalColor.rgb, 0.0, 1.0);
         }
 
         gl_FragColor = vec4(finalColor, alpha);
@@ -298,13 +298,11 @@ function updateVideoTexture(gl, video) {
 
 // --- FUNCIÓN DE INICIALIZACIÓN WEBG L ---
 function initWebGL() {
-    gl = glcanvas.getContext('webgl', { preserveDrawingBuffer: true }); 
+    gl = glcanvas.getContext('webgl', { preserveDrawingBuffer: true });
     if (!gl) {
         alert('Tu navegador no soporta WebGL. No se podrán aplicar filtros avanzados.');
-        console.error('WebGL no soportado.');
         return;
     }
-    console.log('Contexto WebGL obtenido.');
 
     const vertexShader = compileShader(gl, vsSource, gl.VERTEX_SHADER);
     const fragmentShader = compileShader(gl, fsSource, gl.FRAGMENT_SHADER);
@@ -315,10 +313,10 @@ function initWebGL() {
     program.texCoordLocation = gl.getAttribLocation(program, 'a_texCoord');
     program.imageLocation = gl.getUniformLocation(program, 'u_image');
     program.flipXLocation = gl.getUniformLocation(program, 'u_flipX');
-    filterTypeLocation = gl.getUniformLocation(program, 'u_filterType'); 
-    program.resolutionLocation = gl.getUniformLocation(program, 'u_resolution'); 
-    timeLocation = gl.getUniformLocation(program, 'u_time'); 
-    colorShiftUniformLocation = gl.getUniformLocation(program, 'u_colorShift'); 
+    filterTypeLocation = gl.getUniformLocation(program, 'u_filterType');
+    program.resolutionLocation = gl.getUniformLocation(program, 'u_resolution');
+    timeLocation = gl.getUniformLocation(program, 'u_time');
+    colorShiftUniformLocation = gl.getUniformLocation(program, 'u_colorShift');
 
     bassAmpUniformLocation = gl.getUniformLocation(program, 'u_bassAmp');
     midAmpUniformLocation = gl.getUniformLocation(program, 'u_midAmp');
@@ -338,8 +336,7 @@ function initWebGL() {
 
     gl.uniform1i(program.imageLocation, 0);
 
-    gl.uniform1i(filterTypeLocation, 0); 
-    console.log('WebGL inicialización completa.');
+    gl.uniform1i(filterTypeLocation, 0);
 }
 
 
@@ -352,8 +349,7 @@ async function listCameras() {
     const videoDevices = devices.filter(device => device.kind === 'videoinput');
 
     availableCameraDevices = videoDevices;
-    console.log('Cámaras disponibles:', availableCameraDevices);
-    
+
     if (availableCameraDevices.length > 0) {
       if (!currentCameraDeviceId || !availableCameraDevices.some(d => d.deviceId === currentCameraDeviceId)) {
         currentCameraDeviceId = availableCameraDevices[0].deviceId;
@@ -379,7 +375,7 @@ async function startCamera(deviceId) {
       width: { ideal: 1280 },
       height: { ideal: 720 }
     },
-    audio: true 
+    audio: true
   };
 
   try {
@@ -396,8 +392,8 @@ async function startCamera(deviceId) {
         if (!audioContext) {
             audioContext = new (window.AudioContext || window.webkitAudioContext)();
             analyser = audioContext.createAnalyser();
-            analyser.fftSize = 256; 
-            dataArray = new Uint8Array(analyser.frequencyBinBinCount);
+            analyser.fftSize = 256;
+            dataArray = new Uint8Array(analyser.frequencyBinCount);
         }
 
         if (microphone) {
@@ -406,7 +402,7 @@ async function startCamera(deviceId) {
 
         const audioSource = audioContext.createMediaStreamSource(currentStream);
         audioSource.connect(analyser);
-        microphone = audioSource; 
+        microphone = audioSource;
     } else {
         if (microphone) {
             microphone.disconnect();
@@ -424,8 +420,8 @@ async function startCamera(deviceId) {
       if (glcanvas.width !== video.videoWidth || glcanvas.height !== video.videoHeight) {
         glcanvas.width = video.videoWidth;
         glcanvas.height = video.videoHeight;
-        canvas.width = video.videoWidth; 
-        canvas.height = video.videoHeight; 
+        canvas.width = video.videoWidth;
+        canvas.height = video.videoHeight;
         if (gl) {
           gl.viewport(0, 0, glcanvas.width, glcanvas.height);
         }
@@ -439,11 +435,11 @@ async function startCamera(deviceId) {
               locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/selfie_segmentation/${file}`,
           });
           selfieSegmentation.setOptions({
-              modelSelection: 1, 
+              modelSelection: 1,
           });
           selfieSegmentation.onResults(onMediaPipeResults);
       }
-      if (!mpCamera) { 
+      if (!mpCamera) {
           mpCamera = new Camera(video, {
               onFrame: async () => {
                   if (video.videoWidth > 0 && video.videoHeight > 0) {
@@ -466,11 +462,11 @@ async function startCamera(deviceId) {
 
 // --- FUNCIÓN PARA MANEJAR RESULTADOS DE MEDIAPIPE ---
 function onMediaPipeResults(results) {
-    const ctx = canvas.getContext("2d"); 
-    
+    const ctx = canvas.getContext("2d");
+
     const isMediaPipeFilter = ["whiteGlow", "inverseMask", "blackBg", "whiteBg"].includes(selectedFilter);
     if (isMediaPipeFilter) {
-        ctx.clearRect(0, 0, canvas.width, canvas.height); 
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
 
         switch (selectedFilter) {
             case "whiteGlow":
@@ -519,20 +515,20 @@ function onMediaPipeResults(results) {
             default:
                 ctx.drawImage(results.image, 0, 0, canvas.width, canvas.height);
         }
-        ctx.globalCompositeOperation = "source-over"; 
+        ctx.globalCompositeOperation = "source-over";
     }
 }
 
 
 // --- BUCLE PRINCIPAL DE RENDERIZADO WEBG L / MEDIAPIPE ---
 function drawVideoFrame() {
-    requestAnimationFrame(drawVideoFrame); 
+    requestAnimationFrame(drawVideoFrame);
 
     const isMediaPipeFilter = ["whiteGlow", "inverseMask", "blackBg", "whiteBg"].includes(selectedFilter);
 
-    if (!isMediaPipeFilter) { 
+    if (!isMediaPipeFilter) {
         if (!gl || !program || !video.srcObject || video.readyState !== video.HAVE_ENOUGH_DATA) {
-            return; 
+            return;
         }
         updateVideoTexture(gl, video);
 
@@ -543,23 +539,23 @@ function drawVideoFrame() {
 
         const isFrontFacing = currentFacingMode === 'user';
         gl.uniform1i(program.flipXLocation, isFrontFacing ? 1 : 0);
-        
+
         gl.uniform2f(program.resolutionLocation, glcanvas.width, glcanvas.height);
-        
+
         const currentTime = performance.now() / 1000.0;
         gl.uniform1f(timeLocation, currentTime);
 
         if (analyser && dataArray && selectedFilter === 'audio-color-shift') {
-            analyser.getByteFrequencyData(dataArray); 
+            analyser.getByteFrequencyData(dataArray);
             let sum = 0;
             for (let i = 0; i < dataArray.length; i++) {
                 sum += dataArray[i];
             }
             let average = sum / dataArray.length;
-            let normalizedLevel = average / 255.0; 
+            let normalizedLevel = average / 255.0;
 
             if (normalizedLevel > AUDIO_THRESHOLD) {
-                changePaletteIndex(); 
+                changePaletteIndex();
             }
         }
 
@@ -569,26 +565,26 @@ function drawVideoFrame() {
         }
 
         if (selectedFilter === 'modular-color-shift') {
-            const bassAmp = mapValue(Math.sin(currentTime * 0.8 + 0), -1, 1, 0.0, 2.0); 
-            const midAmp = mapValue(Math.sin(currentTime * 1.2 + Math.PI / 3), -1, 1, 0.0, 1.5); 
-            const highAmp = mapValue(Math.sin(currentTime * 1.5 + Math.PI * 2 / 3), -1, 1, 0.0, 2.5); 
+            const bassAmp = mapValue(Math.sin(currentTime * 0.8 + 0), -1, 1, 0.0, 2.0);
+            const midAmp = mapValue(Math.sin(currentTime * 1.2 + Math.PI / 3), -1, 1, 0.0, 1.5);
+            const highAmp = mapValue(Math.sin(currentTime * 1.5 + Math.PI * 2 / 3), -1, 1, 0.0, 2.5);
 
             gl.uniform1f(bassAmpUniformLocation, bassAmp);
             gl.uniform1f(midAmpUniformLocation, midAmp);
             gl.uniform1f(highAmpUniformLocation, highAmp);
         }
 
-        let filterIndex = 0; 
+        let filterIndex = 0;
         switch (selectedFilter) {
-            case 'grayscale': filterIndex = 1; break; 
-            case 'invert': filterIndex = 2; break;    
-            case 'sepia': filterIndex = 3; break;     
-            case 'eco-pink': filterIndex = 4; break;  
-            case 'weird': filterIndex = 5; break;     
-            case 'glow-outline': filterIndex = 6; break; 
-            case 'angelical-glitch': filterIndex = 7; break; 
-            case 'audio-color-shift': filterIndex = 8; break; 
-            case 'modular-color-shift': filterIndex = 9; break; 
+            case 'grayscale': filterIndex = 1; break;
+            case 'invert': filterIndex = 2; break;
+            case 'sepia': filterIndex = 3; break;
+            case 'eco-pink': filterIndex = 4; break;
+            case 'weird': filterIndex = 5; break;
+            case 'glow-outline': filterIndex = 6; break;
+            case 'angelical-glitch': filterIndex = 7; break;
+            case 'audio-color-shift': filterIndex = 8; break;
+            case 'modular-color-shift': filterIndex = 9; break;
             default: filterIndex = 0; break;
         }
         gl.uniform1i(filterTypeLocation, filterIndex);
@@ -613,10 +609,10 @@ captureBtn.addEventListener('click', () => {
     }
 
     let img = new Image();
-    img.src = targetCanvas.toDataURL('image/png'); 
-    
+    img.src = targetCanvas.toDataURL('image/png');
+
     img.onload = () => {
-        addToGallery(img, 'img', img.src); // Pass blob URL for sharing
+        addToGallery(img, 'img', img.src);
     };
     img.onerror = (e) => {
         console.error('Error al cargar la imagen para la galería:', e);
@@ -633,15 +629,15 @@ recordBtn.addEventListener('click', async () => {
         return;
     }
 
-    // Try to use 'video/mp4' if supported, fallback to 'video/webm'
+    // Prioritize MP4 if supported, fallback to webm
     let mimeType = 'video/webm; codecs=vp8'; // Default fallback
-    if (MediaRecorder.isTypeSupported('video/mp4; codecs=avc1.42E01E,mp4a.40.2')) {
-        mimeType = 'video/mp4; codecs=avc1.42E01E,mp4a.40.2';
+    if (MediaRecorder.isTypeSupported('video/mp4')) { // More generic MP4 check
+        mimeType = 'video/mp4';
     } else if (MediaRecorder.isTypeSupported('video/webm; codecs=vp9')) {
         mimeType = 'video/webm; codecs=vp9'; // Better quality webm
     }
 
-    let streamToRecord = targetCanvas.captureStream(); 
+    let streamToRecord = targetCanvas.captureStream();
     mediaRecorder = new MediaRecorder(streamToRecord, { mimeType: mimeType });
 
     mediaRecorder.ondataavailable = e => {
@@ -652,9 +648,13 @@ recordBtn.addEventListener('click', async () => {
       const url = URL.createObjectURL(blob);
       let vid = document.createElement('video');
       vid.src = url;
+      // Set autoplay and controls for the video in the modal
+      vid.autoplay = true;
       vid.controls = true;
+      vid.loop = true; // Loop for better preview experience
+
       vid.onloadedmetadata = () => {
-        addToGallery(vid, 'video', url); // Pass blob URL for sharing
+        addToGallery(vid, 'video', url);
       };
     };
     mediaRecorder.start();
@@ -692,17 +692,17 @@ filterSelect.addEventListener('change', () => {
 
   const isMediaPipeFilter = ["whiteGlow", "inverseMask", "blackBg", "whiteBg"].includes(selectedFilter);
   if (isMediaPipeFilter) {
-      glcanvas.style.display = 'none'; 
-      canvas.style.display = 'block';  
+      glcanvas.style.display = 'none';
+      canvas.style.display = 'block';
   } else {
-      glcanvas.style.display = 'block'; 
-      canvas.style.display = 'none';   
+      glcanvas.style.display = 'block';
+      canvas.style.display = 'none';
   }
 });
 
 fullscreenBtn.addEventListener('click', () => {
   if (!document.fullscreenElement) {
-    cameraContainer.requestFullscreen(); 
+    cameraContainer.requestFullscreen();
   } else {
     document.exitFullscreen();
   }
@@ -717,6 +717,8 @@ function addToGallery(element, type, srcUrl) {
   thumbnail.style.height = '70%'; // Thumbnail height
   thumbnail.style.width = '100%'; // Thumbnail width
   thumbnail.removeAttribute('controls'); // Remove controls for thumbnail video
+  thumbnail.removeAttribute('autoplay'); // Remove autoplay for thumbnail video
+  thumbnail.loop = false; // Do not loop thumbnail video
   container.appendChild(thumbnail);
 
   // Add click/tap to preview
@@ -727,10 +729,14 @@ function addToGallery(element, type, srcUrl) {
       previewElement.style.height = 'auto';
       if (type === 'video') {
           previewElement.controls = true; // Add controls for preview video
-          previewElement.play(); // Auto-play video in modal
+          previewElement.autoplay = true; // Auto-play video in modal
+          previewElement.loop = true; // Loop video in modal
+          previewElement.muted = false; // Ensure video sound is not muted in preview
+          // Important: Load video to ensure it plays in modal
+          previewElement.load();
       }
       modalContent.appendChild(previewElement);
-      previewModal.style.display = 'block'; // Show modal
+      previewModal.style.display = 'flex'; // Show modal using flex for centering
   });
 
   let actions = document.createElement('div');
@@ -741,7 +747,16 @@ function addToGallery(element, type, srcUrl) {
   downloadBtn.onclick = () => {
     const a = document.createElement('a');
     a.href = srcUrl; // Use the actual blob URL or data URL
-    a.download = type === 'img' ? `foto_${Date.now()}.png` : `video_${Date.now()}.${srcUrl.includes('mp4') ? 'mp4' : 'webm'}`;
+    // Adjust download filename based on the actual MIME type of the blob
+    let fileExtension = 'bin'; // Default fallback extension
+    if (srcUrl.includes('image/png') || srcUrl.includes('image/jpeg')) {
+        fileExtension = 'png';
+    } else if (srcUrl.includes('video/mp4')) {
+        fileExtension = 'mp4';
+    } else if (srcUrl.includes('video/webm')) {
+        fileExtension = 'webm';
+    }
+    a.download = type === 'img' ? `foto_${Date.now()}.png` : `video_${Date.now()}.${fileExtension}`;
     a.click();
   };
 
@@ -751,8 +766,8 @@ function addToGallery(element, type, srcUrl) {
     if (navigator.share) {
       try {
         const file = await fetch(srcUrl).then(res => res.blob());
-        const fileName = type === 'img' ? `foto_${Date.now()}.png` : `video_${Date.now()}.${srcUrl.includes('mp4') ? 'mp4' : 'webm'}`;
-        const fileType = file.type; // Use blob's actual mime type
+        const fileName = type === 'img' ? `foto_${Date.now()}.png` : `video_${Date.now()}.${file.type.split('/')[1] || 'bin'}`;
+        const fileType = file.type;
         const shareData = {
           files: [new File([file], fileName, { type: fileType })],
           title: 'Mi creación desde Experimental Camera',
@@ -783,12 +798,18 @@ function addToGallery(element, type, srcUrl) {
   actions.appendChild(deleteBtn);
   container.appendChild(actions);
 
-  gallery.prepend(container); 
+  gallery.prepend(container);
 }
 
 // Close modal when close button is clicked
 closeButton.addEventListener('click', () => {
     previewModal.style.display = 'none';
+    // Pause any playing video in the modal when closing
+    const currentModalVideo = modalContent.querySelector('video');
+    if (currentModalVideo) {
+        currentModalVideo.pause();
+        currentModalVideo.currentTime = 0; // Reset video to start
+    }
     modalContent.innerHTML = ''; // Clear content when closing
 });
 
@@ -796,6 +817,12 @@ closeButton.addEventListener('click', () => {
 window.addEventListener('click', (event) => {
     if (event.target == previewModal) {
         previewModal.style.display = 'none';
+        // Pause any playing video in the modal when closing
+        const currentModalVideo = modalContent.querySelector('video');
+        if (currentModalVideo) {
+            currentModalVideo.pause();
+            currentModalVideo.currentTime = 0; // Reset video to start
+        }
         modalContent.innerHTML = ''; // Clear content when closing
     }
 });
@@ -810,11 +837,11 @@ glcanvas.addEventListener('touchend', (event) => {
     const tapLength = currentTime - lastTap;
 
     if (tapLength < DBL_TAP_THRESHOLD && tapLength > 0) {
-        event.preventDefault(); 
+        event.preventDefault();
         toggleCamera();
     }
     lastTap = currentTime;
-}, { passive: false }); 
+}, { passive: false });
 
 glcanvas.addEventListener('dblclick', () => {
     toggleCamera();
