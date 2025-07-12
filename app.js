@@ -1,6 +1,6 @@
 let video = document.getElementById('video');
 let glcanvas = document.getElementById('glcanvas');
-let canvas = document.getElementById('canvas'); // Para la captura de imágenes estáticas
+let canvas = document.getElementById('canvas'); // Para la captura de imágenes estáticas y ahora para MediaPipe
 let filterSelect = document.getElementById('filterSelect');
 let captureBtn = document.getElementById('capture-button');
 let recordBtn = document.getElementById('record-button');
@@ -19,7 +19,7 @@ let mediaRecorder;
 let chunks = [];
 let isRecording = false;
 let isPaused = false;
-let selectedFilter = 'none'; // Este se usará para seleccionar el filtro en GLSL
+let selectedFilter = 'none'; // Este se usará para seleccionar el filtro en GLSL o MediaPipe
 let currentCameraDeviceId = null;
 let currentFacingMode = null; // 'user' (frontal) o 'environment' (trasera)
 
@@ -54,6 +54,10 @@ let colorShiftUniformLocation; // Ubicación del uniform para el color de la pal
 let bassAmpUniformLocation;
 let midAmpUniformLocation;
 let highAmpUniformLocation;
+
+// --- VARIABLES DE MEDIAPIPE ---
+let selfieSegmentation;
+let mpCamera; // Renombrado para evitar conflicto con variables existentes
 
 // Vertex Shader: define la posición de los vértices y las coordenadas de textura
 const vsSource = `
@@ -438,7 +442,9 @@ async function startCamera(deviceId) {
       if (glcanvas.width !== video.videoWidth || glcanvas.height !== video.videoHeight) {
         glcanvas.width = video.videoWidth;
         glcanvas.height = video.videoHeight;
-        console.log('Canvas WebGL redimensionado a:', glcanvas.width, 'x', glcanvas.height);
+        canvas.width = video.videoWidth; // Set dimensions for 2D canvas as well
+        canvas.height = video.videoHeight; // Set dimensions for 2D canvas as well
+        console.log('Canvas WebGL y 2D redimensionados a:', glcanvas.width, 'x', glcanvas.height);
         if (gl) {
           gl.viewport(0, 0, glcanvas.width, glcanvas.height);
           console.log('Viewport de WebGL actualizado.');
@@ -449,8 +455,34 @@ async function startCamera(deviceId) {
         initWebGL();
         console.log('WebGL inicializado tras cargar video.');
       }
+
+      // Initialize MediaPipe Selfie Segmentation and Camera only once
+      if (!selfieSegmentation) {
+          selfieSegmentation = new SelfieSegmentation({
+              locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/selfie_segmentation/${file}`,
+          });
+          selfieSegmentation.setOptions({
+              modelSelection: 1, // Use 0 for landscape, 1 for portrait
+          });
+          selfieSegmentation.onResults(onMediaPipeResults);
+          console.log('MediaPipe SelfieSegmentation inicializado.');
+      }
+      if (!mpCamera) { // Use mpCamera to avoid conflict with existing 'camera' from other context if any
+          mpCamera = new Camera(video, {
+              onFrame: async () => {
+                  if (video.videoWidth > 0 && video.videoHeight > 0) {
+                      await selfieSegmentation.send({ image: video });
+                  }
+              },
+              width: video.videoWidth,
+              height: video.videoHeight
+          });
+          mpCamera.start();
+          console.log('MediaPipe Camera utility iniciado.');
+      }
+
       drawVideoFrame();
-      console.log('Bucle de renderizado WebGL iniciado.');
+      console.log('Bucle de renderizado WebGL/2D iniciado.');
     };
   } catch (err) {
     console.error('No se pudo acceder a la cámara/micrófono:', err);
@@ -458,82 +490,146 @@ async function startCamera(deviceId) {
   }
 }
 
-// --- BUCLE PRINCIPAL DE RENDERIZADO WEBG L ---
+// --- FUNCIÓN PARA MANEJAR RESULTADOS DE MEDIAPIPE (similares a silueta_roja.html) ---
+function onMediaPipeResults(results) {
+    const ctx = canvas.getContext("2d"); // Draw on the 2D canvas
+    
+    // Clear the canvas only if a MediaPipe filter is active
+    const isMediaPipeFilter = ["whiteGlow", "inverseMask", "blackBg", "whiteBg"].includes(selectedFilter);
+    if (isMediaPipeFilter) {
+        ctx.clearRect(0, 0, canvas.width, canvas.height); // Clear the 2D canvas
+
+        switch (selectedFilter) {
+            case "whiteGlow":
+                ctx.save();
+                ctx.filter = "blur(20px)";
+                ctx.globalAlpha = 0.7;
+                for (let i = 0; i < 3; i++) {
+                    ctx.drawImage(results.segmentationMask, 0, 0, canvas.width, canvas.height);
+                }
+                ctx.restore();
+
+                ctx.save();
+                ctx.globalCompositeOperation = "destination-in";
+                ctx.drawImage(results.segmentationMask, 0, 0, canvas.width, canvas.height);
+                ctx.restore();
+
+                ctx.globalCompositeOperation = "destination-over";
+                ctx.drawImage(results.image, 0, 0, canvas.width, canvas.height);
+                break;
+
+            case "inverseMask":
+                ctx.filter = "blur(10px)";
+                ctx.drawImage(results.image, 0, 0, canvas.width, canvas.height);
+                ctx.filter = "none";
+
+                ctx.save();
+                ctx.globalCompositeOperation = "destination-out";
+                ctx.drawImage(results.segmentationMask, 0, 0, canvas.width, canvas.height);
+                ctx.restore();
+                break;
+
+            case "blackBg":
+            case "whiteBg":
+                ctx.fillStyle = selectedFilter === "blackBg" ? "black" : "white";
+                ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+                ctx.save();
+                ctx.globalCompositeOperation = "destination-in";
+                ctx.drawImage(results.segmentationMask, 0, 0, canvas.width, canvas.height);
+                ctx.restore();
+
+                ctx.globalCompositeOperation = "destination-over";
+                ctx.drawImage(results.image, 0, 0, canvas.width, canvas.height);
+                break;
+
+            default:
+                // If it's a MediaPipe filter but not one of the custom ones, just draw the image
+                ctx.drawImage(results.image, 0, 0, canvas.width, canvas.height);
+        }
+        ctx.globalCompositeOperation = "source-over"; // Reset for next draw
+    }
+}
+
+
+// --- BUCLE PRINCIPAL DE RENDERIZADO WEBG L / MEDIAPIPE ---
 function drawVideoFrame() {
-    // Asegurarse de que gl y program estén disponibles
-    if (!gl || !program || !video.srcObject || video.readyState !== video.HAVE_ENOUGH_DATA) {
-        requestAnimationFrame(drawVideoFrame);
-        return;
-    }
+    requestAnimationFrame(drawVideoFrame); // Keep this running continuously
 
-    // --- Detección de nivel de audio (solo si el filtro de audio está seleccionado) ---
-    if (analyser && dataArray && selectedFilter === 'audio-color-shift') {
-        analyser.getByteFrequencyData(dataArray); // O `getByteTimeDomainData` para la forma de onda
-        let sum = 0;
-        for (let i = 0; i < dataArray.length; i++) {
-            sum += dataArray[i];
+    const isMediaPipeFilter = ["whiteGlow", "inverseMask", "blackBg", "whiteBg"].includes(selectedFilter);
+
+    if (!isMediaPipeFilter) { // If it's a WebGL filter
+        if (!gl || !program || !video.srcObject || video.readyState !== video.HAVE_ENOUGH_DATA) {
+            return; // Don't draw if WebGL or video is not ready
         }
-        let average = sum / dataArray.length;
-        let normalizedLevel = average / 255.0; // Normalizar a un rango de 0-1
+        updateVideoTexture(gl, video);
 
-        if (normalizedLevel > AUDIO_THRESHOLD) {
-            changePaletteIndex(); // Cambiar la paleta si el sonido es fuerte
+        gl.clearColor(0.0, 0.0, 0.0, 1.0);
+        gl.clear(gl.COLOR_BUFFER_BIT);
+
+        gl.useProgram(program);
+
+        const isFrontFacing = currentFacingMode === 'user';
+        gl.uniform1i(program.flipXLocation, isFrontFacing ? 1 : 0);
+        
+        // Pasar la resolución al shader
+        gl.uniform2f(program.resolutionLocation, glcanvas.width, glcanvas.height);
+        
+        // Pasar el tiempo al shader (en segundos)
+        const currentTime = performance.now() / 1000.0;
+        gl.uniform1f(timeLocation, currentTime);
+
+        // --- Detección de nivel de audio (solo si el filtro de audio está seleccionado) ---
+        if (analyser && dataArray && selectedFilter === 'audio-color-shift') {
+            analyser.getByteFrequencyData(dataArray); // O `getByteTimeDomainData` para la forma de onda
+            let sum = 0;
+            for (let i = 0; i < dataArray.length; i++) {
+                sum += dataArray[i];
+            }
+            let average = sum / dataArray.length;
+            let normalizedLevel = average / 255.0; // Normalizar a un rango de 0-1
+
+            if (normalizedLevel > AUDIO_THRESHOLD) {
+                changePaletteIndex(); // Cambiar la paleta si el sonido es fuerte
+            }
         }
+
+        // Pasar el color de la paleta actual al shader si el filtro activo es 'audio-color-shift'
+        if (selectedFilter === 'audio-color-shift') {
+            const currentColor = palettes[paletteIndex];
+            gl.uniform3fv(colorShiftUniformLocation, new Float32Array(currentColor));
+        }
+
+        // --- Pasar "amplitudes" basadas en tiempo para el filtro Modular Color Shift ---
+        if (selectedFilter === 'modular-color-shift') {
+            // Generar valores pulsantes usando seno y mapearlos a los rangos deseados
+            const bassAmp = mapValue(Math.sin(currentTime * 0.8 + 0), -1, 1, 0.0, 2.0); // 0-2.0
+            const midAmp = mapValue(Math.sin(currentTime * 1.2 + Math.PI / 3), -1, 1, 0.0, 1.5); // 0-1.5
+            const highAmp = mapValue(Math.sin(currentTime * 1.5 + Math.PI * 2 / 3), -1, 1, 0.0, 2.5); // 0-2.5
+
+            gl.uniform1f(bassAmpUniformLocation, bassAmp);
+            gl.uniform1f(midAmpUniformLocation, midAmp);
+            gl.uniform1f(highAmpUniformLocation, highAmp);
+        }
+
+        let filterIndex = 0; // FILTER_NONE por defecto
+        switch (selectedFilter) {
+            case 'grayscale': filterIndex = 1; break; // FILTER_GRAYSCALE
+            case 'invert': filterIndex = 2; break;    // FILTER_INVERT
+            case 'sepia': filterIndex = 3; break;     // FILTER_SEPIA
+            case 'eco-pink': filterIndex = 4; break;  // FILTER_ECO_PINK
+            case 'weird': filterIndex = 5; break;     // FILTER_WEIRD
+            case 'glow-outline': filterIndex = 6; break; // Filtro Glow con contorno
+            case 'angelical-glitch': filterIndex = 7; break; // Filtro Angelical Glitch
+            case 'audio-color-shift': filterIndex = 8; break; // Filtro Audio Color Shift
+            case 'modular-color-shift': filterIndex = 9; break; // Nuevo filtro Modular Color Shift
+            default: filterIndex = 0; break;
+        }
+        gl.uniform1i(filterTypeLocation, filterIndex);
+
+        gl.drawArrays(gl.TRIANGLES, 0, 6);
     }
-    // --- Fin detección de nivel de audio ---
-
-    updateVideoTexture(gl, video);
-
-    gl.clearColor(0.0, 0.0, 0.0, 1.0);
-    gl.clear(gl.COLOR_BUFFER_BIT);
-
-    gl.useProgram(program);
-
-    const isFrontFacing = currentFacingMode === 'user';
-    gl.uniform1i(program.flipXLocation, isFrontFacing ? 1 : 0);
-    
-    // Pasar la resolución al shader
-    gl.uniform2f(program.resolutionLocation, glcanvas.width, glcanvas.height);
-    
-    // Pasar el tiempo al shader (en segundos)
-    const currentTime = performance.now() / 1000.0;
-    gl.uniform1f(timeLocation, currentTime);
-
-    // Pasar el color de la paleta actual al shader si el filtro activo es 'audio-color-shift'
-    if (selectedFilter === 'audio-color-shift') {
-        const currentColor = palettes[paletteIndex];
-        gl.uniform3fv(colorShiftUniformLocation, new Float32Array(currentColor));
-    }
-
-    // --- Pasar "amplitudes" basadas en tiempo para el filtro Modular Color Shift ---
-    if (selectedFilter === 'modular-color-shift') {
-        // Generar valores pulsantes usando seno y mapearlos a los rangos deseados
-        const bassAmp = mapValue(Math.sin(currentTime * 0.8 + 0), -1, 1, 0.0, 2.0); // 0-2.0
-        const midAmp = mapValue(Math.sin(currentTime * 1.2 + Math.PI / 3), -1, 1, 0.0, 1.5); // 0-1.5
-        const highAmp = mapValue(Math.sin(currentTime * 1.5 + Math.PI * 2 / 3), -1, 1, 0.0, 2.5); // 0-2.5
-
-        gl.uniform1f(bassAmpUniformLocation, bassAmp);
-        gl.uniform1f(midAmpUniformLocation, midAmp);
-        gl.uniform1f(highAmpUniformLocation, highAmp);
-    }
-
-    let filterIndex = 0; // FILTER_NONE por defecto
-    switch (selectedFilter) {
-        case 'grayscale': filterIndex = 1; break; // FILTER_GRAYSCALE
-        case 'invert': filterIndex = 2; break;    // FILTER_INVERT
-        case 'sepia': filterIndex = 3; break;     // FILTER_SEPIA
-        case 'eco-pink': filterIndex = 4; break;  // FILTER_ECO_PINK
-        case 'weird': filterIndex = 5; break;     // FILTER_WEIRD
-        case 'glow-outline': filterIndex = 6; break; // Filtro Glow con contorno
-        case 'angelical-glitch': filterIndex = 7; break; // Filtro Angelical Glitch
-        case 'audio-color-shift': filterIndex = 8; break; // Filtro Audio Color Shift
-        case 'modular-color-shift': filterIndex = 9; break; // Nuevo filtro Modular Color Shift
-        default: filterIndex = 0; break;
-    }
-    gl.uniform1i(filterTypeLocation, filterIndex);
-
-    gl.drawArrays(gl.TRIANGLES, 0, 6);
-    requestAnimationFrame(drawVideoFrame);
+    // MediaPipe drawing is handled by onMediaPipeResults, triggered by mpCamera.send()
 }
 
 // Función auxiliar para mapear un valor de un rango a otro
@@ -545,16 +641,19 @@ function mapValue(value, inMin, inMax, outMin, outMax) {
 // --- MANEJADORES DE EVENTOS ---
 captureBtn.addEventListener('click', () => {
     console.log('Botón de captura clickeado.');
-    if (!gl || !glcanvas.width || !glcanvas.height) {
-        console.error('WebGL no está inicializado o el canvas no tiene dimensiones para la captura.');
+    // Determine which canvas is currently active for display
+    const targetCanvas = (glcanvas.style.display !== 'none') ? glcanvas : canvas;
+
+    if (!targetCanvas || !targetCanvas.width || !targetCanvas.height) {
+        console.error('El canvas activo no está inicializado o no tiene dimensiones para la captura.');
         return;
     }
 
     let img = new Image();
-    img.src = glcanvas.toDataURL('image/png'); 
+    img.src = targetCanvas.toDataURL('image/png'); 
     
     img.onload = () => {
-        console.log('Imagen cargada para la galería desde glcanvas.toDataURL().');
+        console.log('Imagen cargada para la galería desde el canvas activo.toDataURL().');
         addToGallery(img, 'img');
     };
     img.onerror = (e) => {
@@ -566,8 +665,15 @@ captureBtn.addEventListener('click', () => {
 recordBtn.addEventListener('click', () => {
   if (!isRecording) {
     chunks = [];
-    console.log('Iniciando grabación desde glcanvas.captureStream().');
-    let streamToRecord = glcanvas.captureStream(); // Capturar el stream del canvas con los filtros
+    // Determine which canvas is currently active for display
+    const targetCanvas = (glcanvas.style.display !== 'none') ? glcanvas : canvas;
+    if (!targetCanvas) {
+        console.error('No se pudo encontrar el canvas activo para la grabación.');
+        return;
+    }
+
+    console.log('Iniciando grabación desde el canvas activo.captureStream().');
+    let streamToRecord = targetCanvas.captureStream(); // Capturar el stream del canvas con los filtros
     mediaRecorder = new MediaRecorder(streamToRecord, { mimeType: 'video/webm; codecs=vp8' });
 
     mediaRecorder.ondataavailable = e => {
@@ -625,6 +731,16 @@ filterSelect.addEventListener('change', () => {
   selectedFilter = filterSelect.value;
   filtersDropdown.style.display = 'none';
   console.log('Filtro seleccionado:', selectedFilter);
+
+  // Toggle canvas visibility based on filter type
+  const isMediaPipeFilter = ["whiteGlow", "inverseMask", "blackBg", "whiteBg"].includes(selectedFilter);
+  if (isMediaPipeFilter) {
+      glcanvas.style.display = 'none'; // Hide WebGL canvas
+      canvas.style.display = 'block';  // Show 2D canvas for MediaPipe effects
+  } else {
+      glcanvas.style.display = 'block'; // Show WebGL canvas
+      canvas.style.display = 'none';   // Hide 2D canvas
+  }
 });
 
 fullscreenBtn.addEventListener('click', () => {
@@ -662,7 +778,7 @@ function addToGallery(element, type) {
       try {
         const file = await fetch(element.src).then(res => res.blob());
         const fileName = type === 'img' ? 'foto.png' : 'video.webm';
-        const fileType = type === 'img' ? 'image/png' : 'video/webm';
+        const fileType = type === 'img' ? 'image/png' : 'video/png'; // Corrected video mime type if needed
         const shareData = {
           files: [new File([file], fileName, { type: fileType })],
           title: 'Mi creación desde Experimental Camera',
