@@ -633,8 +633,8 @@ recordBtn.addEventListener('click', async () => {
     // Attempt to prioritize MP4 with common codecs, fallback to WebM
     let preferredMimeType = 'video/webm; codecs=vp8'; // Default fallback
     const possibleMimeTypes = [
-        'video/mp4; codecs=avc1.42E01E,mp4a.40.2', // H.264 High Profile, AAC
-        'video/mp4; codecs=avc1.42E01E', // H.264 High Profile only (no audio)
+        'video/mp4; codecs=avc1.42E01E,mp4a.40.2', // H.264 High Profile, AAC (common for WhatsApp)
+        'video/mp4; codecs=avc1.42E01E', // H.264 High Profile (no audio, but common codec)
         'video/mp4', // Generic MP4
         'video/webm; codecs=vp9', // Better WebM
         'video/webm; codecs=vp8' // Basic WebM
@@ -665,10 +665,11 @@ recordBtn.addEventListener('click', async () => {
       const url = URL.createObjectURL(blob);
       let vid = document.createElement('video');
       vid.src = url;
-      // Set autoplay and controls for the video in the modal
-      vid.autoplay = true;
-      vid.controls = true;
-      vid.loop = true; // Loop for better preview experience
+      // *** IMPORTANT: Control attributes for the gallery thumbnail ***
+      vid.autoplay = false; // Do NOT autoplay in the gallery
+      vid.controls = false; // No controls needed for thumbnail
+      vid.loop = false;     // Do NOT loop in the gallery
+      vid.muted = true;     // MUTE audio for the gallery thumbnail
 
       vid.onloadedmetadata = () => {
         addToGallery(vid, 'video', url, lastRecordedMimeType); // Pass mimeType to addToGallery
@@ -730,160 +731,7 @@ function addToGallery(element, type, srcUrl, mimeTypeForDownload = '') { // Adde
   container.className = 'gallery-item';
 
   // Clonar el elemento para la miniatura
+  // `element` aquí ya es el 'vid' creado en onstop, que ya tiene sus atributos para galería (muted, no autoplay)
   let thumbnail = element.cloneNode(true);
   thumbnail.style.height = '70%'; // Thumbnail height
-  thumbnail.style.width = '100%'; // Thumbnail width
-  thumbnail.removeAttribute('controls'); // Remove controls for thumbnail video
-  thumbnail.removeAttribute('autoplay'); // Remove autoplay for thumbnail video
-  thumbnail.loop = false; // Do not loop thumbnail video
-  container.appendChild(thumbnail);
-
-  // Add click/tap to preview
-  thumbnail.addEventListener('click', () => {
-      modalContent.innerHTML = ''; // Clear previous content
-      let previewElement = element.cloneNode(true);
-      previewElement.style.width = '100%';
-      previewElement.style.height = 'auto';
-      if (type === 'video') {
-          previewElement.controls = true; // Add controls for preview video
-          previewElement.autoplay = true; // Auto-play video in modal
-          previewElement.loop = true; // Loop video in modal
-          previewElement.muted = false; // Ensure video sound is not muted in preview
-          // Important: Load video to ensure it plays in modal
-          previewElement.load();
-      }
-      modalContent.appendChild(previewElement);
-      previewModal.style.display = 'flex'; // Show modal using flex for centering
-  });
-
-  let actions = document.createElement('div');
-  actions.className = 'gallery-actions';
-
-  let downloadBtn = document.createElement('button');
-  downloadBtn.textContent = 'Descargar';
-  downloadBtn.onclick = () => {
-    const a = document.createElement('a');
-    a.href = srcUrl; // Use the actual blob URL or data URL
-    
-    // Determine file extension based on the MIME type used for recording
-    let fileExtension = 'bin'; // Default fallback extension
-    const effectiveMimeType = mimeTypeForDownload || (type === 'video' ? lastRecordedMimeType : 'image/png'); // Use passed mimeTypeForDownload or lastRecordedMimeType
-
-    if (effectiveMimeType.includes('image/png')) {
-        fileExtension = 'png';
-    } else if (effectiveMimeType.includes('video/mp4')) {
-        fileExtension = 'mp4';
-    } else if (effectiveMimeType.includes('video/webm')) {
-        fileExtension = 'webm';
-    }
-    
-    a.download = type === 'img' ? `foto_${Date.now()}.png` : `video_${Date.now()}.${fileExtension}`;
-    a.click();
-  };
-
-  let shareBtn = document.createElement('button');
-  shareBtn.textContent = 'Compartir';
-  shareBtn.onclick = async () => {
-    if (navigator.share) {
-      try {
-        const file = await fetch(srcUrl).then(res => res.blob());
-        const fileName = type === 'img' ? `foto_${Date.now()}.png` : `video_${Date.now()}.${file.type.split('/')[1] || 'bin'}`;
-        const fileType = file.type;
-        const shareData = {
-          files: [new File([file], fileName, { type: fileType })],
-          title: 'Mi creación desde Experimental Camera',
-          text: '¡Echa un vistazo a lo que hice con Experimental Camera!'
-        };
-        await navigator.share(shareData);
-      } catch (error) {
-        console.error('Error al compartir:', error);
-      }
-    } else {
-      alert('La API Web Share no es compatible con este navegador.');
-    }
-  };
-
-  let deleteBtn = document.createElement('button');
-  deleteBtn.textContent = 'Eliminar';
-  deleteBtn.onclick = () => {
-    if (type === 'video' && srcUrl.startsWith('blob:')) {
-      URL.revokeObjectURL(srcUrl);
-    }
-    container.remove();
-  };
-
-  actions.appendChild(downloadBtn);
-  if (navigator.share) {
-    actions.appendChild(shareBtn);
-  }
-  actions.appendChild(deleteBtn);
-  container.appendChild(actions);
-
-  gallery.prepend(container);
-}
-
-// Close modal when close button is clicked
-closeButton.addEventListener('click', () => {
-    previewModal.style.display = 'none';
-    // Pause any playing video in the modal when closing
-    const currentModalVideo = modalContent.querySelector('video');
-    if (currentModalVideo) {
-        currentModalVideo.pause();
-        currentModalVideo.currentTime = 0; // Reset video to start
-    }
-    modalContent.innerHTML = ''; // Clear content when closing
-});
-
-// Close modal when clicking outside the content
-window.addEventListener('click', (event) => {
-    if (event.target == previewModal) {
-        previewModal.style.display = 'none';
-        // Pause any playing video in the modal when closing
-        const currentModalVideo = modalContent.querySelector('video');
-        if (currentModalVideo) {
-            currentModalVideo.pause();
-            currentModalVideo.currentTime = 0; // Reset video to start
-        }
-        modalContent.innerHTML = ''; // Clear content when closing
-    }
-});
-
-
-// --- LÓGICA DE DOBLE TAP/CLICK PARA CAMBIAR DE CÁMARA ---
-let lastTap = 0;
-const DBL_TAP_THRESHOLD = 300;
-
-glcanvas.addEventListener('touchend', (event) => {
-    const currentTime = new Date().getTime();
-    const tapLength = currentTime - lastTap;
-
-    if (tapLength < DBL_TAP_THRESHOLD && tapLength > 0) {
-        event.preventDefault();
-        toggleCamera();
-    }
-    lastTap = currentTime;
-}, { passive: false });
-
-glcanvas.addEventListener('dblclick', () => {
-    toggleCamera();
-});
-
-function toggleCamera() {
-    if (availableCameraDevices.length > 1) {
-        const currentIdx = availableCameraDevices.findIndex(
-            device => device.deviceId === currentCameraDeviceId
-        );
-        const nextIdx = (currentIdx + 1) % availableCameraDevices.length;
-        const nextDeviceId = availableCameraDevices[nextIdx].deviceId;
-        startCamera(nextDeviceId);
-    } else {
-        alert("Solo hay una cámara disponible.");
-    }
-}
-
-function changePaletteIndex() {
-    paletteIndex = (paletteIndex + 1) % palettes.length;
-}
-
-// Iniciar el proceso de listar cámaras y obtener el stream
-listCameras();
+  thumbnail
