@@ -3,36 +3,36 @@ body {
   background: #000;
   font-family: sans-serif;
   overflow-x: hidden;
-  display: flex; /* Usamos flexbox para organizar el body */
-  flex-direction: column; /* Apila los elementos (cámara y galería) verticalmente */
-  min-height: 100vh; /* Asegura que el body ocupe toda la altura de la ventana */
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
 }
 
 #camera-container {
-  position: relative; /* Es crucial para el posicionamiento absoluto de sus hijos */
+  position: relative;
   width: 100%;
-  flex-grow: 1; /* Permite que el contenedor de la cámara tome el espacio disponible */
-  display: flex; /* Ayuda a que video/glcanvas se adapten a su interior */
+  flex-grow: 1;
+  display: flex;
   justify-content: center;
   align-items: center;
-  overflow: hidden; /* Evita desbordamientos si el video tiene una relación de aspecto diferente */
+  overflow: hidden;
 }
 
 video, #glcanvas {
-  position: absolute; /* Superpone el video y el canvas */
+  position: absolute;
   top: 0;
   left: 0;
   width: 100%;
   height: 100%;
-  object-fit: cover; /* Asegura que el video/canvas cubra el espacio sin distorsionarse */
+  object-fit: cover;
 }
 
 #glcanvas {
-  z-index: 2; /* Asegura que el canvas WebGL esté encima del video */
+  z-index: 2; 
 }
 
 video {
-  z-index: 1; /* El video estará detrás del canvas */
+  z-index: 1; 
 }
 
 #controls, #recording-controls {
@@ -41,99 +41,96 @@ video {
   width: 100%;
   display: flex;
   justify-content: center;
+  align-items: center;
   gap: 20px;
-  z-index: 10; /* Asegura que los controles estén encima de todo */
+  z-index: 10;
 }
 
 .circle {
   width: 60px;
   height: 60px;
   border-radius: 50%;
-  border: none;
-  opacity: 0.8;
+  border: 2px solid white;
+  background-color: transparent;
   cursor: pointer;
+  transition: transform 0.2s;
+  box-shadow: 0 0 10px rgba(0,0,0,0.5);
+  display: flex;
+  justify-content: center;
+  align-items: center;
 }
 
-.white {
-  background: white;
+.circle:active {
+  transform: scale(0.95);
 }
 
-.red {
-  background: red;
-}
+.circle.white { background-color: white; }
+.circle.red { background-color: red; }
+.circle.yellow { background-color: yellow; }
 
-.yellow {
-  background: yellow;
-}
-
-.small.gray {
-  width: 40px;
-  height: 40px;
-  border-radius: 50%;
-  background: gray;
+#recording-controls button {
+  padding: 10px 20px;
+  border-radius: 5px;
   border: none;
-  font-size: 20px;
+  cursor: pointer;
+  font-size: 16px;
   color: white;
-  opacity: 0.8;
-  cursor: pointer;
+  background-color: #555;
 }
 
 #fullscreen-button {
   position: absolute;
   top: 10px;
   right: 10px;
+  font-size: 24px;
   color: white;
-  background: rgba(0,0,0,0.4);
-  padding: 5px;
-  border-radius: 5px;
-  z-index: 10;
   cursor: pointer;
-  font-size: 20px;
+  z-index: 10;
 }
 
 #filters-dropdown {
   position: absolute;
-  bottom: 80px;
+  top: 50%;
   left: 50%;
-  transform: translateX(-50%);
-  display: none;
-  background: rgba(255,255,255,0.9);
-  padding: 5px;
-  border-radius: 5px;
-  z-index: 10;
+  transform: translate(-50%, -50%);
+  z-index: 100;
+  background-color: rgba(0, 0, 0, 0.8);
+  padding: 20px;
+  border-radius: 10px;
+  display: none; /* Oculto por defecto */
 }
 
 #filterSelect {
-  padding: 5px;
-  border-radius: 3px;
-  border: 1px solid #ccc;
-  background: white;
+  width: 200px;
+  padding: 10px;
+  border-radius: 5px;
+  border: 1px solid #333;
+  background-color: #222;
+  color: white;
+  font-size: 16px;
 }
 
-/* Estilos para la galería */
 #gallery {
-  /* Ahora que camera-container tiene flex-grow: 1, gallery puede tomar su propio espacio */
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); /* Columnas responsivas */
+  gap: 10px;
   padding: 10px;
-  background: #111; /* Un color oscuro para que se note la galería */
-  display: flex;
-  flex-wrap: wrap; /* Permite que los elementos se envuelvan en varias filas */
-  gap: 10px; /* Espacio entre los elementos */
-  justify-content: center; /* Centra los elementos horizontalmente */
-  width: 100%; /* Ocupa todo el ancho */
-  min-height: 100px; /* Altura mínima para que sea visible, ajusta si es necesario */
-  overflow-y: auto; /* Permite desplazamiento si hay muchos elementos */
-  box-sizing: border-box; /* Incluye padding en el ancho/alto */
-  flex-shrink: 0; /* Evita que la galería se encoja si el espacio es limitado */
+  background: #222;
+  border-top: 1px solid #333;
+  max-height: 200px; 
+  overflow-y: auto; 
+  box-sizing: border-box; 
+  flex-shrink: 0; 
 }
 
 .gallery-item {
-  width: 150px; /* Ancho fijo para cada item de galería */
-  height: 120px; /* Altura fija para cada item de galería (ajustada para espacio de botones) */
+  width: 100%; /* Ocupa todo el ancho de su columna */
+  height: auto; /* Altura automática */
   border: 1px solid #555;
   border-radius: 5px;
-  overflow: hidden; /* Oculta cualquier parte del contenido que se desborde */
+  overflow: hidden; 
   display: flex;
-  flex-direction: column; /* Apila la imagen/video y las acciones */
+  flex-direction: column; 
   background: #000;
   box-shadow: 0 0 5px rgba(0,0,0,0.5);
 }
@@ -141,10 +138,12 @@ video {
 .gallery-item img,
 .gallery-item video {
   width: 100%;
-  height: 70%; /* Ocupa la mayor parte del espacio, dejando espacio para acciones */
-  object-fit: cover; /* Asegura que la imagen/video cubra el espacio sin distorsionarse */
-  display: block; /* Elimina cualquier espacio extra por defecto */
-  flex-shrink: 0; /* No permite que la imagen/video se encoja */
+  height: auto; /* Permite que la altura se ajuste automáticamente */
+  aspect-ratio: 16/9; /* Mantiene una relación de aspecto común, puedes ajustar */
+  object-fit: cover; 
+  display: block; 
+  flex-shrink: 0; 
+  cursor: pointer; /* Indica que es clickeable */
 }
 
 .gallery-actions {
@@ -152,21 +151,79 @@ video {
   justify-content: space-around;
   align-items: center;
   padding: 5px 0;
-  background: #222;
-  flex-grow: 1; /* Ocupa el espacio restante en el item */
+  background: #333;
+  width: 100%; /* Asegura que ocupe todo el ancho del item */
+  box-sizing: border-box; /* Incluye padding en el ancho */
+  flex-wrap: wrap; /* Permite que los botones salten de línea si no caben */
 }
 
 .gallery-actions button {
-  background: #444;
-  color: white;
-  border: none;
-  padding: 5px 8px;
+  flex: 1 1 auto; /* Permite que los botones crezcan/reduzcan y se ajusten */
+  margin: 2px; /* Espacio entre botones */
+  padding: 5px 8px; /* Ajusta el padding para hacerlos más pequeños */
+  font-size: 12px; /* Tamaño de fuente más pequeño */
   border-radius: 3px;
-  font-size: 0.75em;
+  border: none;
+  background-color: #007bff;
+  color: white;
   cursor: pointer;
-  transition: background 0.3s ease;
+  white-space: nowrap; /* Evita que el texto del botón se rompa */
+  min-width: 60px; /* Ancho mínimo para que no se hagan demasiado pequeños */
+  max-width: calc(33% - 4px); /* Máximo 3 botones por fila con margen */
 }
 
-.gallery-actions button:hover {
-  background: #666;
+/* Modal styles */
+.modal {
+  display: none; /* Hidden by default */
+  position: fixed; /* Stay in place */
+  z-index: 1000; /* Sit on top */
+  left: 0;
+  top: 0;
+  width: 100%; /* Full width */
+  height: 100%; /* Full height */
+  overflow: auto; /* Enable scroll if needed */
+  background-color: rgba(0,0,0,0.9); /* Black w/ opacity */
+  display: flex; /* Use flexbox to center content */
+  justify-content: center;
+  align-items: center;
+}
+
+.modal-content {
+  margin: auto;
+  display: block;
+  max-width: 90%;
+  max-height: 90%;
+  object-fit: contain; /* Ensure content fits within modal */
+  background-color: #000; /* Background for content */
+  padding: 0; /* Remove padding as content itself is styled */
+  border-radius: 8px;
+  overflow: hidden; /* Hide anything outside content area */
+}
+
+.modal-content img, .modal-content video {
+  width: 100%;
+  height: auto;
+  display: block;
+  margin: auto;
+  max-height: 80vh; /* Limit height to modal's height */
+  object-fit: contain; /* Contain for preview */
+}
+
+.close-button {
+  position: absolute;
+  top: 15px;
+  right: 35px;
+  color: #f1f1f1;
+  font-size: 40px;
+  font-weight: bold;
+  transition: 0.3s;
+  cursor: pointer;
+  z-index: 1001; /* Above modal content */
+}
+
+.close-button:hover,
+.close-button:focus {
+  color: #bbb;
+  text-decoration: none;
+  cursor: pointer;
 }
